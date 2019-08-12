@@ -3,16 +3,15 @@
 
 <head>
 <meta charset="UTF-8"> 
-<title>ACE in Action</title>
+<title>JSON Editor For Security Model</title>
 <link rel="stylesheet" href="./styles.css">
+<script src="./src/ace.js"></script>
+<script src="./src/ext-language_tools.js"></script>
 </head>
 
 <body>
-<input type="file" id="fileElem" style="display:none" accept=".json" onchange="window.ace.handleFiles(this.files)">
-<div id="editor" onclick="window.ace.importDataModel()" onkeypress="window.ace.importDataModel()"></div>
-<script src="./src/ace.js"></script>
-<script src="./src/ext-language_tools.js"></script>
-<script src="./editor.js"></script>
+<input type="file" id="fileElem" style="display:none" accept=".json" onchange="ace.handleFiles(this.files)">
+<div id="editor" onclick="ace.importDataModel()" onkeypress="ace.importDataModel()"></div>
+<script src="./src/editor.js"></script>
 </body>
-
 </html>

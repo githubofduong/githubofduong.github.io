@@ -1,42 +1,3 @@
-// ace.define("ace/handler/json-upload", [], function(require, exports, module) {
-// "use strict";
-
-//     var dataModel = null; // real json object to store uploaded data model json
-
-//     function importDataModel() {
-//         dataModel
-//             ? removeEditorAttributes(['onclick', 'onkeypress'])
-//             : window.alert('First of all, please press (ALT + O) to IMPORT a valid JSON file of data model before editing!');
-//     }
-
-//     function removeEditorAttributes(attArr) {
-//         var tmp_editor = document.getElementById('editor');
-//         for (var el in attArr) {
-//             tmp_editor.removeAttribute(attArr[el]);
-//         }
-//     }
-
-//     function handleFiles(files) { // function to handle the uploaded json file
-//         var jsonFile = files[0], // get the file uploaded, which is the first object of files[]
-//             reader = new FileReader(); // FileReader object to read input
-
-//         reader.readAsText(jsonFile); // read the uploaded file as text
-//         reader.onerror = function(e) { // FileReader errorHandler()
-//             window.alert(reader.error);
-//         }
-//         reader.onload = function(e) { // FileReader eventHandler()
-//             try { // parsing the text into JSON
-//                 dataModel = JSON.parse(reader.result);
-//                 receiveDataModel(dataModel);
-//                 // console.log(wc);
-//                 // console.log(dataModel);
-//             } catch (error) { // in case of json parsing error
-//                 window.alert('ParsingError: the file ' +jsonFile.name+ ' is invalid JSON!');
-//             }
-//         }
-//     }
-// });
-
 ace.define("ace/snippets",["require","exports","module","ace/lib/oop","ace/lib/event_emitter","ace/lib/lang","ace/range","ace/anchor","ace/keyboard/hash_handler","ace/tokenizer","ace/lib/dom","ace/editor"], function(require, exports, module) {
 // "use strict";
 var oop = require("./lib/oop");
@@ -1558,30 +1519,35 @@ var Autocomplete = function() {
         var session = editor.getSession();
         var pos = editor.getCursorPosition();
         var line = editor.session.getLine(pos.row);
+        // var doc = editor.getValue();
 
         var prefix = util.getCompletionPrefix(editor);
         this.base = session.doc.createAnchor(pos.row, pos.column - prefix.length);
         this.base.$insertRight = true;
 
-        if (util.cursorInsideDoubleQuotes(line, pos.column)) {
+        // try {
+            // var jsonObj = JSON.parse(doc);
+            if (util.cursorInsideDoubleQuotes(line, pos.column)) {
 
-            var matches = [];
-            var total = editor.completers.length;
-            editor.completers.forEach(function(completer, i) {
-                completer.getCompletions(editor, session, pos, prefix, function(err, results) {
-                    
-                    if (!err && results)
-                        matches = matches.concat(results);
-                        // console.log(results);                    
-                    callback(null, {
-                        prefix: util.getCompletionPrefix(editor),
-                        matches: matches,
-                        finished: (--total === 0)
+                var matches = [];
+                var total = editor.completers.length;
+                editor.completers.forEach(function(completer, i) {
+                    completer.getCompletions(editor, session, pos, prefix, function(err, results) {
+                        
+                        if (!err && results)
+                            matches = matches.concat(results);      
+                        callback(null, {
+                            prefix: util.getCompletionPrefix(editor),
+                            matches: matches,
+                            finished: (--total === 0)
+                        });
                     });
                 });
-            });
-            return true;
-        }
+                return true;
+            }
+        // } catch (error) {
+            
+        // }
     };
 
     this.showPopup = function(editor) {
@@ -1904,22 +1870,29 @@ var util = require("../autocomplete/util");
 var DataModel = require("ace/data-model").DataModel;
 var dataModelObj = new DataModel();
 
-
+// function to get a list of data model objects for auto-completion
 function getClassNames() {
-    var className,
-        classEl, //dataModel = [],
-        classList = [],
-        dataModel = dataModelObj.getDataModel();
 
+    /*******************  VARIABLES  *************************/
+    var classEl,   // class element: iterator of for loop
+                   // get JSON array of data model
+        dataModel = dataModelObj.getDataModel(),
+        className, // placeholder for accessing class name
+        classList = []; // list of class names
+    /*******************  VARIABLES  *************************/        
+
+    // loop through each JSON object data model
     for (classEl in dataModel) {
+        // access each object
         className = dataModel[classEl].class;
+        // only get objects having 2 properties 'name' and 'attributes'
         if (className && dataModel[classEl].attributes) {
             classList.push(
                 {
                     name: className,
                     value: className,
                     score: 0,
-                    meta: "className"
+                    meta: "className" // tag name for auto-completion
                 }
             );
         }
@@ -1927,81 +1900,130 @@ function getClassNames() {
     return classList;
 }
 
-function getResources(className) { //console.log(className); 
-    var resources = [],
-        tmpName, tmpAttr, attObj,
+// function to get values of property 'resources' for auto-completion
+function getResources(className) {
+
+    /*******************  PARAMETERS  ********************
+     * className: name of the class 'resources' belongs to
+     *******************  PARAMETERS  ********************/
+
+    /*******************  VARIABLES  *************************/
+    var // iterators of for loops
         el, subEl,
+        // array of objects containing values for 'resources'
+        resources = [],
+        // placeholders for accessing elements
+        tmpName, tmpAttr, attObj,
+        // get array of data model
         dataModel = dataModelObj.getDataModel();
+    /*******************  VARIABLES  *************************/
+
+    // loop through data model
     for (el in dataModel) {
-        tmpName = dataModel[el].class;
-        tmpAttr = dataModel[el].attributes; // array of object
+        tmpName = dataModel[el].class;      // access property 'class'
+        tmpAttr = dataModel[el].attributes; // access property 'attributes'
+        // class name found and 'attributes' is an array with at least an element
         if (tmpName == className && Array.isArray(tmpAttr) && tmpAttr.length) {
-            for (subEl in tmpAttr) {
-                attObj = tmpAttr[subEl];
-                resources.push({
-                    name: attObj.name,
-                    value: attObj.name,
-                    score: 0,
-                    meta: "resources"
-                });
+            for (subEl in tmpAttr) {     // loop through array 'attributes'
+                resources.push(tmpAttr[subEl].name);
+                // attObj = tmpAttr[subEl]; // access object element of the array
+                // resources.push({
+                //     name: attObj.name,
+                //     value: attObj.name,
+                //     score: 0,
+                //     meta: "resources"
+                // });
             }
         }
     }
     return resources;
 }
+
+// function to find the exact property or class name for auto-completion
 function findTermInRange(lowerBound, upperBound, terms, doc) {
-    var tmp_term, // a placeholder
-            termName, // name of closest searched term
-            termIndex, // index of currently searching term
-            oldIndex = 0, // to store last valid index
-            range = doc.substring(lowerBound, upperBound), // range to search
-            patt, // search pattern, RegExp()
-            str, // search term
-            el;
+    
+    /*******************  PARAMETERS  *************************
+     * lowerBound, upperBound: indices of the range to search
+     * terms: array of possible terms to filter
+     * doc: a string containing text input
+     *******************  PARAMETERS  ************************/
+
+    /*******************  VARIABLES  *************************/
+    var el,        // iterator of for loop
+        tmp_term,  // a placeholder for accessing each element
+        strStart = '"',
+        strEnd = '"\\s*:',
+        str,       // modify the search term (adding double quotes, regexp)
+        termIndex, // index of currently searching term
+        termName,  // name of closest searched term
+        oldIndex = 0, // to store the last valid index
+                   // range to search
+        range = doc.substring(lowerBound, upperBound),
+        patt;      // search pattern, RegExp()
+    /*******************  VARIABLES  *************************/ 
+
+    // classify array terms
+    if (typeof terms[0] == 'object') {
+        terms.forEach(function(currentEl, index, arr) {
+            arr[index] = currentEl.name;
+        });
+        strStart = '"class"\\s*:\\s*"';
+        strEnd = '"';
+    }
+    // loop through each element in array terms
     for (el in terms) {
-        // tmp_term = terms[el].name ? ('"' +terms[el].name+ '"') : terms[el]; // get current class name
-        tmp_term = terms[el].name || terms[el];
-        str = '"' +tmp_term+ '"';
-        if (typeof terms[el] == 'string') {
-            str += '\\s*:';
-        }
+        // access each element
+        tmp_term = terms[el];
+        // create a string to literal to pass to RegExp()
+        str = strStart + tmp_term + strEnd;
+        // create a search pattern
         patt = new RegExp(str);
-        // termIndex = doc.lastIndexOf(tmp_term, upperBound);
+        // find the term's index
         termIndex = range.search(patt);
+        // the higher the index, the closer the property to the cursor
         if (termIndex > oldIndex) {
-            oldIndex = termIndex;
-            termName = tmp_term;
+            oldIndex = termIndex; // store the term's index
+            termName = tmp_term;  // store the term's name
         }
     }
     return termName;
 }
 
-function getKeywordList(editor, pos) {
-    var c = 0,
-        className,
-        propertyName,
-        classList = getClassNames(), // list of class names
-        lastChar = '',
-        currentChar,
-        propertyList = ['resources', 'actions', 'default', 'roles', 'auth'],
-        level_0_leftCurlyBraceIndex,
-        level_1_leftCurlyBraceIndex,
-        state = false, // inside double quotes state becomes true
-        posIndex = leftUpper = rightLower = editor.getSession().getDocument().positionToIndex(pos),
-        blockLevel = -1, // 0 or 1 represents parentheses
-        doc = editor.getValue(), // 0 or 1 represents key/value double quotes
-        docLength = doc.length, // get the text contents
-        leftLine = doc.slice(0, leftUpper), // extract from beginning till cursor
-        leftChar, rightChar; // first chars which are non-blank outside of double quotes
+function validateDoubleQuotes(cursorIndex, doc) {
+
+    /**************** PARAMETERS ********************
+     * cursorIndex: index of the cursor in the string
+     * doc: string array of the document
+     **************** PARAMETERS ********************/
+
+    /**************** VARIABLES***********************/
+    var // iterator of while loop
+        c = 0,
+        // length of document
+        docLength = doc.length,
+        // state to mark if iterator c is inside a pair of double quotes
+        state = false,
+        // identify which block level the cursor is inside
+        blockLevel = -1,
+        // indices of left curly braces for block level 0 and 1 respectively
+        left_0, left_1,
+        // left and right characters which are not blank outside double quotes
+        leftChar, rightChar,
+        // to store last character and current character
+        lastChar = '', currentChar,
+        // to store index of the object the cursor is inside
+        objIndex = -1
+        ;
+    /**************** VARIABLES **********************/
 
     // determine blockLevel
-    while (c < leftUpper) {
-        currentChar = leftLine[c];
+    while (c < cursorIndex) {
+        currentChar = doc[c];
         if (currentChar === '"' && lastChar !== '\\') {
             state = !state;
         } else if (currentChar === '{' && !state) {
-            if (blockLevel == -1) {level_0_leftCurlyBraceIndex = c}
-            else if (blockLevel == 0) {level_1_leftCurlyBraceIndex = c}
+            if (blockLevel == -1) { left_0 = c; ++objIndex; }
+            else if (blockLevel == 0) { left_1 = c }
             ++blockLevel;
         } else if (currentChar === '}' && !state) {
             --blockLevel;
@@ -2010,11 +2032,8 @@ function getKeywordList(editor, pos) {
         ++c;
     }
 
-    // check if cursor inside at least a pair of curly braces {}
-    var rightCurlyBrace = blockLevel;
-    // when cursor inside at least a left curly brace
-    if (rightCurlyBrace > -1) {
-
+    if (blockLevel > -1) {
+        var rightCurlyBrace = blockLevel;
         // in the end, rightCurlyBrace reflects if curly braces are synchronous
         while (rightCurlyBrace !== -1 && c < docLength) {
             currentChar = doc[c];
@@ -2028,74 +2047,228 @@ function getKeywordList(editor, pos) {
             lastChar = currentChar;
             ++c;
         }
-
-        // not valid as curly braces are asynchronous
-        if (rightCurlyBrace !== -1) {
-            return null;
-        } else { // valid as curly braces are synchronous
-            do { // find index of left double quote
-                leftUpper = leftLine.lastIndexOf('"', leftUpper-1);
-            } while (leftUpper > 0 && leftLine[leftUpper-1] === '\\');
-
-            //leftUpper stores the index of left double quote
-            while (--leftUpper > 0 && /\s/.test(leftLine[leftUpper]));
-            leftChar = leftLine[leftUpper];
-
-            do { // find index of right double quote
-                rightLower = doc.indexOf('"', rightLower);
-            } while (rightLower < docLength && doc[rightLower-1] === '\\');
-
-            //rightLower stores the index of right double quote
-            while (++rightLower < docLength && /\s/.test(doc[rightLower]));
-            rightChar = doc[rightLower];
-
-            var kwList; // list to return keywords
-            // double quotes on the right side
-            if (leftChar === ':' && blockLevel === 0) {
-                    return classList;
-            } else { // ':' not found or ':' is rightChar
-
-                // values for 'resources', 'actions', 'default' or 'roles', 'auth'
-                if (((leftChar === '[' || leftChar === ',') && (rightChar === ']' || rightChar === ','))
-                || (leftChar === ':' && blockLevel === 1)) {
-
-                    // search for the corresponding property keyword
-                    propertyName = findTermInRange(level_1_leftCurlyBraceIndex, posIndex, propertyList, doc);
-                    
-                    switch (propertyName) {
-                        case 'resources':
-                            // search for the class name of the current object
-                            className = findTermInRange(level_0_leftCurlyBraceIndex, c, classList, doc);
-                            // return the list of values for auto-completion of property 'resources'
-                            return getResources(className);
-                        case 'actions':
-                            kwList = ['create', 'read', 'update', 'delete'];
-                            return editor.session.$mode.getCompletions(kwList, 'actions');
-                        case 'default':
-                            kwList = ['self = caller'];
-                            return editor.session.$mode.getCompletions(kwList, 'default');
-                        case 'roles':
-                            kwList = ['admin', 'lecturer'];
-                            return editor.session.$mode.getCompletions(kwList, 'roles');
-                        case 'auth':
-                            kwList = ['true', 'self.oclAsType(Student).courses->exists(c|c.lectures->includes(caller.oclAsType(Lecturer)))'];
-                            return editor.session.$mode.getCompletions(kwList, 'auth');
-                        default:
-                            return null;
-                    }
-                } else { // for keywords of properties
-                    if (blockLevel === 0) { // 'class', 'permission'
-                        kwList = ['class', 'permission'];
-                    } else { // 'resources', 'actions', 'default' or 'roles', 'auth'
-                        kwList = ['resources', 'actions', 'default', 'roles', 'auth'];
-                    }
-                    return editor.session.$mode.getCompletions(kwList);
-                }
+        if (rightCurlyBrace === -1) {
+            leftChar = findLeftChar(cursorIndex, doc);
+            rightChar = findRightChar(cursorIndex, doc);
+            return {
+                c: c,
+                blockLevel: blockLevel,
+                leftChar: leftChar,
+                rightChar: rightChar,
+                left_0: left_0,
+                left_1: left_1,
+                objIndex: objIndex
             }
         }
-    } else { // not valid as cursor is not inside any left curly brace
-        return null;
     }
+    return false;
+}
+
+function findLeftChar(leftUpper, doc) {
+    var leftChar,
+        leftLine = doc.slice(0, leftUpper);
+    do { // find index of left double quote
+        leftUpper = leftLine.lastIndexOf('"', leftUpper-1);
+    } while (leftUpper > 0 && leftLine[leftUpper-1] === '\\');
+
+    //leftUpper stores the index of left double quote
+    while (--leftUpper > 0 && /\s/.test(leftLine[leftUpper]));
+    leftChar = leftLine[leftUpper];
+
+    return leftChar;
+}
+
+function findRightChar(rightLower, doc) {
+    var rightChar,
+        docLength = doc.length;
+    do { // find index of right double quote
+        rightLower = doc.indexOf('"', rightLower);
+    } while (rightLower < docLength && doc[rightLower-1] === '\\');
+
+    //rightLower stores the index of right double quote
+    while (++rightLower < docLength && /\s/.test(doc[rightLower]));
+    rightChar = doc[rightLower];
+
+    return rightChar;
+}
+
+function filterClassNames(classList, doc) {
+    var el,
+        patt,
+        index,
+        str = '"class"\\s*:\\s*"';
+
+    for (el in classList) {
+        patt = new RegExp(str +classList[el].name+ '"');
+        index = doc.search(patt);
+        if (index !== -1) {
+            classList.splice(el, el+1);
+        }
+    }
+    return classList;
+}
+
+// function filterPropertiesOuter(propertyList, doc, lower, upper) {
+//     var el,
+//         str = (!lower || !upper) ? doc : doc.slice(lower, upper),
+//         patt;
+
+//     for (el in propertyList) {
+//         patt = new RegExp('"' +propertyList[el]+ '"\\s*:');
+//         if (str.search(patt) !== -1) {
+//             propertyList.splice(el, el+1);
+//         }
+//     }
+//     return propertyList;
+// }
+
+function filterProperties(propertyList, doc, lower, upper) {
+    var str = (!lower || !upper) ? doc : doc.slice(lower, upper),
+        i = 0,
+        patt,
+        tmp,
+        hasDefault = hasRoles = hasAuth = false;
+
+    while (i < propertyList.length) {
+        tmp = propertyList[i];
+        patt = new RegExp('"' +tmp+ '"\\s*:');
+        if (str.search(patt) !== -1) {
+            switch(tmp) {
+                case 'default':
+                    hasDefault = true;
+                    break;
+                case 'roles':
+                    hasRoles = true;
+                    break;
+                case 'auth':
+                    hasAuth = true;
+                    break;
+                default:
+                    break;
+            }
+            propertyList.splice(i, 1);
+        } else {
+            ++i;
+        }
+    }
+    if (hasDefault) {
+        hasRoles = propertyList.indexOf('roles');
+        hasRoles >= 0 ? propertyList.splice(hasRoles, 1) : {};
+        hasAuth = propertyList.indexOf('auth');
+        hasAuth >= 0 ? propertyList.splice(hasAuth, 1) : {};
+    } else if (hasRoles || hasAuth) {
+        hasDefault = propertyList.indexOf('default');
+        hasDefault >= 0 ? propertyList.splice(hasDefault, 1) : {};
+        
+    }
+    return propertyList;
+}
+
+function filterArrValues(property, values, doc, lower, upper) {
+    var str = doc.slice(lower, upper),
+        patt = new RegExp('"' +property+ '"\\s*:\\s*\\[.*\\]\\s*[,}]'),
+        res = str.match(patt)[0],
+        str = res.match(/\[.*\]/)[0],
+        arr = [];
+
+    values.filter(function(currentValue) {
+        str.indexOf(currentValue) === -1 ? arr.push(currentValue) : {};
+    });
+    return arr;
+}
+
+function getKeywordList(editor, pos) {
+
+    var // convert position to index of cursor
+        cursorIndex = editor.getSession().getDocument().positionToIndex(pos),
+        // get text document as a string
+        doc = editor.getValue(),
+        // fetch necessary info
+        validatedResult = validateDoubleQuotes(cursorIndex, doc);
+
+    if (validatedResult) {
+
+        var // array to return list of keywords
+            kwList,
+            // class name of the object the cursor is inside
+            className,
+            // store a list of class names of data model
+            classList = getClassNames(),
+            // property name of the double quotes that the cursor is inside
+            propertyName,
+            // lists of properties
+            propertyList_1 = ['resources', 'actions', 'roles'],
+            propertyList_2 = ['default', 'auth'],
+            // alias for validatedResult
+            res = validatedResult
+            // getting properties
+            c = res.c,
+            blockLevel = res.blockLevel;
+            leftChar = res.leftChar,
+            rightChar = res.rightChar,
+            left_0 = res.left_0,
+            left_1 = res.left_1,
+            objIndex = res.objIndex;
+
+        // double quotes on the right side
+        if (leftChar === ':' && blockLevel === 0) {
+            return filterClassNames(classList, doc);;
+        } else {
+
+            // values for 'resources', 'actions', 'roles'
+            if ((leftChar === '[' || leftChar === ',') && (rightChar === ']' || rightChar === ',')) {
+
+                // search for the corresponding property keyword
+                propertyName = findTermInRange(left_1, cursorIndex, propertyList_1, doc);
+                
+                switch (propertyName) {
+                    case 'resources':
+                        className = findTermInRange(left_0, c, classList, doc);
+                        kwList = getResources(className);
+                        kwList = filterArrValues('resources', kwList, doc, left_1, c);
+                        return editor.session.$mode.getCompletions(kwList, 'resources');
+                    case 'actions':
+                        kwList = ['create', 'read', 'update', 'delete'];
+                        kwList = filterArrValues('actions', kwList, doc, left_1, c);
+                        return editor.session.$mode.getCompletions(kwList, 'actions');
+                    case 'roles':
+                        kwList = ['admin', 'lecturer'];
+                        kwList = filterArrValues('roles', kwList, doc, left_1, c);
+                        return editor.session.$mode.getCompletions(kwList, 'roles');
+                    default:
+                        return null;
+                }
+            // values for 'default', 'auth'
+            } else if (leftChar === ':' && blockLevel === 1) {
+
+                // search for the corresponding property keyword
+                propertyName = findTermInRange(left_1, cursorIndex, propertyList_2, doc);
+
+                switch(propertyName) {
+                    case 'default':
+                        return null;
+                        // kwList = ['self = caller'];
+                        // return editor.session.$mode.getCompletions(kwList, 'default');
+                    case 'auth':
+                        return null;
+                        // kwList = ['true', 'self.oclAsType(Student).courses->exists(c|c.lectures->includes(caller.oclAsType(Lecturer)))'];
+                        // return editor.session.$mode.getCompletions(kwList, 'auth');
+                    default:
+                        return null;
+                }
+            } else { // for keywords of properties
+                if (blockLevel === 0) { // 'class', 'permission'
+                    kwList = ['class', 'permission'];
+                    kwList = filterProperties(kwList, doc, left_0, c);
+                } else { // 'resources', 'actions', 'default' or 'roles', 'auth'
+                    kwList = ['resources', 'actions', 'default', 'roles', 'auth'];
+                    kwList = filterProperties(kwList, doc, left_1, c);
+                }
+                return editor.session.$mode.getCompletions(kwList);
+            }
+        }
+    }
+    return null;
 }
 
 var keyWordCompleter = {
