@@ -1692,35 +1692,34 @@ ace.define("ace/mode/json/json_parse",[], function(require, exports, module) {
 
 ace.define("ace/mode/validator/schema", [], function(require, exports, module){
 "use strict";
-    var at = 0,// index of left curly brace of first block
-        p_at = 0,// index of left square bracket of array "permission"
-        errMsg,// message about error
-        errInd,// relative index of error
-        text,// string of text input from editor
-        textLength = 0,// length of text input
-        classList = [],// array of valid data model objects
-        classNameList = [];// string array of valid class names of data model
+    var // index
+        // at,
+        // text input from editor
+        text,
+        // length of text input
+        // textLength,
+        // object array of data model (valid)
+        classList = [],
+        // string array of class names of data model (valid)
+        classNameList = []; // array of string
         // usedClassNames = [],// array of string
         
-    // announce error messages
-    function error (msg, p) {
+    // function to announce error messages
+    function error (m, p) {
         throw {
             name:    'InvalidSchema',
-            message: msg,
+            message: m,
             at:      p+1,
             text:    text
         }
     }
 
-    // find entry index of next block
-    function findNextBlockIndex (c) {
-        // c: current index
+    function findEndIndex (c, len) {
         var i = 0,
-            lastChar = '',
             currentChar = '',
+            lastChar = '',
             insideDoubleQuotes = false;
-
-        while (c < textLength) {
+        while (c < len) {
             currentChar = text.charAt(c);
             if (currentChar == '"' && lastChar != '\\') { insideDoubleQuotes = !insideDoubleQuotes; }
             else if (currentChar == '{' && !insideDoubleQuotes) { ++i; }
@@ -1743,10 +1742,7 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         return true;
     }
 
-    // all strings must belong to property "attributes" data model
-    function validateResourcesValues (className, str) {
-        // className: class name which "resources" belongs to
-        // str: a string of "resources" to validate
+    function validateResources (className, str) {
         if (!classNameList.length) { return true; }
         var el, subEl,
             classObj, attrObj;
@@ -1764,17 +1760,20 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         return false;
     }
 
-    // only run once to fetch class names from data model into arrays
     function setLists (dataModel) {
+
         // reset arrays
-        classList = [];//array of objects
-        classNameList = [];//string array
+        classList = [];
+        classNameList = [];
 
-        var el,
+        var // iterator
+            el,
+            // temp obj to access each data model's object
             tmp;
-
         for (el in dataModel) {
             tmp = dataModel[el];
+            // push objects which have properties 'class' and 'attributes'
+            // by default, those two properties were already non-empty
             if (tmp.hasOwnProperty('class') && tmp.hasOwnProperty('attributes')) {
                 classList.push(tmp);
                 classNameList.push(tmp.class);
@@ -1782,445 +1781,464 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         }
     }
 
-    // search for a property which error belongs to
-    function searchProperty (index, propertyName) {
-        var range = text.slice(index),
+    function searchProperty (text, index, propertyName, errMsg) {
+        var // sub string sliced at the start of current object till the end
+            range = text.slice(index),
+            // string literal to search for unwanted property and its value
             str = '"' +propertyName+ '"\\s*:',
             // '"\\s*:\\s*(?:((\\[.*\\])|(\\{(.|\\n)*\\})|(".*")|(\\d+)))'
-            patt = new RegExp(str);
-        
-        errInd = index + range.search(patt);
+            // create a search pattern
+            patt = new RegExp(str),
+            // variables to store error message and relative error's index
+            errInd = range.search(patt);
+
+        errMsg = errMsg || 'Invalid schema: Unexpected "' +propertyName+ '".';
         error(errMsg, errInd);
     }
-
-    // check the existence of "class" and "permission"
-    // return length of array "permission"
-    function validateOuterBlock (currentArrEl) {
-        /****** TYPE CHECK OF ELEMENT ******/
-        // type: array
-        if (Array.isArray(currentArrEl)) {
-            errMsg = 'Invalid schema: Element must be object.';
-            errInd = text.indexOf('[', at+1);
-            error(errMsg, errInd);
-        }// type: string, number
-        else if (typeof currentArrEl == 'string' || typeof currentArrEl == 'number') {
-            errMsg = 'Invalid schema: Element must be object.';
-            errInd = text.indexOf(currentArrEl, at);
-            error(errMsg, errInd);
-        }/****** END TYPE CHECK OF ELEMENT ******/
-
         
-        /****** ELEMENT IS OBJECT ******/
-        // get properties of object as a string array 
-        var propertyList = Object.keys(currentArrEl);
-        // empty object
-        if (!propertyList.length) {
-            errMsg = 'Invalid schema: Empty object.';
-            errInd = text.indexOf('{', at);
-            error(errMsg, errInd);
-        }// object not empty
-
-
-        /****** FILTER UNWANTED PROPERTIES ******/
-        var eachProperty,
-            currentProperty,
-            classProperty = false,
-            permissionProperty = false;
-
-        for (eachProperty in propertyList) {
-
-            currentProperty = propertyList[eachProperty];
-            switch(currentProperty) {
-                case 'class':
-                    classProperty = true;
-                    break;
-                case 'permission':
-                    permissionProperty = true;
-                    break;
-                default:
-                    /****** REMOVE UNWANTED PROPERTY ******/
-                    searchProperty(text, at, currentProperty);
-            }
-        }/****** END OF FILTER UNWANTED PROPERTIES ******/
-
-
-        /****** RECHECK THE EXISTENCE OF PROPERTY CLASS ******/
-        // missing class
-        if (!classProperty) {
-            errMsg = 'Invalid schema: Missing property "class".';
-            errInd = text.indexOf('{', at);
-            error(errMsg, errInd);
-        } // class exists
-        /****** END OF RECHECK THE EXISTENCE OF PROPERTY CLASS ******/
-
-
-        /****** VALIDATE INPUT OF PROPERTY CLASS ******/
-        var classValue = currentArrEl.class;
-        // value of class is not string or empty string
-        if (typeof classValue != "string" || classValue.trim() == "") {
-            errMsg = 'Invalid schema: Invalid class name.';
-            searchProperty(at, 'class');
-        }
-
-        // class name does not belong to data model
-        if (validateClassName(classValue)) {
-            errMsg = 'SemanticError: Class name "' +classValue+ '" not found.';
-            searchProperty(at, 'class');
-        }
-
-        /****** DISABLED CHECK DUPLICATION OF CLASS NAME ******/
-        // if (duplicateClassName(classValue)) {
-        //     errMsg = 'SemanticError: Class "' +classValue+ '" duplicated.';
-        //     searchProperty(at, 'class');
-        // }
-        /****** DISABLED CHECK DUPLICATION OF CLASS NAME ******/
-        /****** END OF VALIDATE INPUT OF PROPERTY CLASS ******/
-
-
-        /****** RECHECK THE EXISTENCE OF PROPERTY PERMISSION ******/
-        // missing permission
-        if (!permissionProperty) {
-            errMsg = 'Invalid schema: Missing property "permission".'
-            errInd = text.indexOf('{', at);
-            error(errMsg, errInd);
-        }// permission exists
-        /****** END OF RECHECK THE EXISTENCE OF PROPERTY PERMISSION ******/
-
-        
-        /****** VALIDATE INPUT OF PROPERTY PERMISSION ******/
-        var permissionValue = currentArrEl.permission;
-        // permission is not array
-        if (!Array.isArray(permissionValue)) {
-            errMsg = 'Invalid schema: "permission" must be array.';
-            searchProperty(at, 'permission');
-        }// permission is array
-
-        // number of elements of array "permission"
-        var permLength = permissionValue.length;
-        // array "permission" empty
-        if (!permLength) {
-            errMsg = 'Invalid schema: Array "permission" empty.';
-            searchProperty(at, 'permission');
-        } // array not empty
-        /****** END OF VALIDATE INPUT OF PROPERTY PERMISSION ******/
-
-        return permLength;
-    }
-
-    // check the existence of properties:
-    //   "resources"
-    //   "actions"
-    //   "default" or "roles", "auth"
-    // and validate input values of each existing one
-    function validateInnerBlock (currentObject, className) {
-        
-        /****** TYPE CHECK OF ARRAY ELEMENT ******/
-        // array element is not object
-        if (typeof currentObject !== 'object' || Array.isArray(currentObject)) {
-            errMsg = 'Invalid schema: Element of "permission" must be object.';
-            searchProperty(at, 'permission');
-        }// element is object
-        /****** END OF TYPE CHECK OF ARRAY ELEMENT ******/
-
-
-        /****** FILTER UNWANTED PROPERTIES OF OBJECT ELEMENT ******/
-        var el,// iterator
-            tmpProperty,
-            // list of properties as strings
-            propertyList = Object.keys(currentObject),
-            // varibles to check the attendance of properties
-            p_resources = false,
-            p_actions = false,
-            p_default = false,
-            p_roles = false,
-            p_auth = false;
-
-        // object empty
-        if (!propertyList.length) {
-            errMsg = 'Invalid schema: Empty object';
-            errInd = text.indexOf('{', p_at);
-            error(errMsg, errInd);
-        }// object not empty
-
-        for (el in propertyList) {
-            tmpProperty = propertyList[el];
-            switch(tmpProperty) {
-                case 'resources':
-                    p_resources = true;
-                    validateResources(currentObject, className);
-                    break;
-                case 'actions':
-                    p_actions = true;
-                    validateActions(currentObject);
-                    break;
-                case 'default':
-                    p_default = true;
-                    validateDefault(currentObject);
-                    break;
-                case 'roles':
-                    p_roles = true;
-                    validateRoles(currentObject);
-                    break;
-                case 'auth':
-                    p_auth = true;
-                    validateAuth(currentObject);
-                    break;
-                default:
-                    searchProperty(p_at, tmpProperty);
-            }
-        }/****** END OF FILTER UNWANTED PROPERTIES OF OBJECT ELEMENT ******/
-
-
-        /****** RECHECK THE EXISTENCE OF PROPERTIES ******/
-        // begin checking "resources"
-        if (!p_resources) {
-            errMsg = 'Invalid schema: Missing property "resources".';
-            errInd = text.indexOf("{", p_at+1);
-            error(errMsg, errInd);
-        }// "resources" exists, check "actions"
-        else if (!p_actions) {
-            errMsg = 'Invalid schema: Missing property "actions".';
-            errInd = text.indexOf("{", p_at+1);
-            error(errMsg, errInd);
-        }// "actions" exists, check "default"
-        else if (p_default) { // "default" exists
-            if (p_roles) {// "roles" exists => suggest a removal
-                errMsg = 'Invalid schema: Remove "default" or "roles".';
-                errInd = text.indexOf("{", p_at+1);
-                error(errMsg, errInd);
-            } else if (p_auth) { // "auth" exists => suggest a removal
-                errMsg = 'Invalid schema: Remove "default" or "auth".';
-                errInd = text.indexOf("{", p_at+1);
-                error(errMsg, errInd);
-            }
-        }// no "default", check "roles", "auth"
-        else if (!p_default) {
-            if (!p_roles && p_auth) {
-                errMsg = 'Invalid schema: Missing property "roles".';
-                errInd = text.indexOf("{", p_at+1);
-                error(errMsg, errInd);
-            } else if (!p_auth && p_roles) {
-                errMsg = 'Invalid schema: Missing property "auth".';
-                errInd = text.indexOf("{", p_at+1);
-                error(errMsg, errInd);
-            } else if (!p_roles && !p_auth) {
-                errMsg = 'Invalid schema: Missing property "default" or properties "roles", "auth".';
-                errInd = text.indexOf("{", p_at+1);
-                error(errMsg, errInd);
-            }
-        }/****** END OF RECHECK THE EXISTENCE OF PROPERTIES ******/
-    }
-
-    // validate values of array "resources"
-    function validateResources(currentObject, className) {
-
-        // "resources" is not array
-        if (!Array.isArray(currentObject.resources)) {
-            errMsg = 'Invalid schema: Property "resources" must be array.';
-            searchProperty(p_at, 'resources');
-        } else { // check array elements
-            if (!currentObject.resources.length) { // array empty
-                errMsg = 'Invalid schema: Array "resources" empty.';
-                searchProperty(p_at, 'resources');
-            } else { // array NOT empty
-                var resourcesEl = currentObject.resources,
-                    str = '',
-                    el;
-                // iterate over array elements
-                for (el in resourcesEl) {
-                    str = resourcesEl[el];
-                    if (typeof str != "string" || str.trim() == "") {
-                        errMsg = 'Invalid schema: Invalid element.';
-                        searchProperty(p_at, 'resources');
-                    }
-                    if (!validateResourcesValues(className, str)) {
-                        errMsg = 'Invalid schema: String element "' +str+ '" not found.';
-                        searchProperty(p_at, 'resources');
-                    }
-                }
-            }
-        }
-    }
-
-    // validate values of array "actions"
-    function validateActions(currentObject) {
-        
-        /******* VALIDATE PROPERTY "ACTIONS" *******/
-        // "actions" is not array
-        if (!Array.isArray(currentObject.actions)) {
-            errMsg = 'Invalid schema: Property "actions" must be array.';
-            searchProperty(p_at, 'actions');
-        } else { // check array elements
-            if (!currentObject.actions.length) { // array empty
-                errMsg = 'Invalid schema: Array "actions" empty.';
-                searchProperty(p_at, 'actions');
-            } else { // array NOT empty
-                var actionsEl = currentObject.actions,
-                    str,// currently accessing element
-                    el,// iterator
-                    // marking the existence of each property
-                    // true: found and false: not found
-                    create = false,
-                    read =  false,
-                    update = false,
-                    del = false;
-                // iterate over array elements
-                for (el in actionsEl) {
-                    str = actionsEl[el];
-                    if (typeof str != "string" || str.trim() == "") {
-                        errMsg = 'Invalid schema: Invalid element.';
-                        searchProperty(p_at, 'actions');
-                    }// valid string element
-                    // the string must be one of 'create', 'read', update' or 'delete'
-                    switch(str.trim()) {
-                        case 'create':
-                            create
-                                ? (errMsg = 'Invalid schema: "create" duplicated.',
-                                    searchProperty(p_at, 'actions'))
-                                : create = true;
-                            break;
-                        case 'read':
-                            read
-                                ? (errMsg = 'Invalid schema: "read" duplicated.',
-                                    searchProperty(p_at, 'actions'))
-                                : read = true;
-                            break;
-                        case 'update':
-                            update
-                                ? (errMsg = 'Invalid schema: "update" duplicated.',
-                                    searchProperty(p_at, 'actions'))
-                                : update = true;
-                            break;
-                        case 'delete':
-                            del
-                                ? (errMsg = 'Invalid schema: "delete" duplicated.',
-                                    searchProperty(p_at, 'actions'))
-                                : del = true;
-                            break;
-                        default:
-                            errMsg = 'Invalid schema: "' +str.trim()+ '" not valid.';
-                            searchProperty(p_at, 'actions');
-                            break;
-                    }
-                }
-            }
-        }
-    }
-
-    // check values of "default"
-    function validateDefault(currentObject) {
-        var tmpDefault = currentObject.default;
-        if (typeof tmpDefault != "string" || tmpDefault.trim() == "") {
-            errMsg = 'Invalid schema: Property "default" invalid.';
-            searchProperty(p_at, 'default');
-        }
-    }
-
-    // check values of "roles"
-    function validateRoles(currentObject) {
-
-        var rolesEl = currentObject.roles,
-            len;
-        if (!Array.isArray(rolesEl)) {
-            errMsg = 'Invalid schema: Property "roles" must be array.';
-            searchProperty(p_at, 'roles');
-        }// "roles" is array
-
-        len = rolesEl.length;
-        if (!len) {// array empty
-            errMsg = 'Invalid schema: Array "roles" empty.';
-            searchProperty(p_at, 'roles');
-        } else { // array not empty
-            var i = 0,
-                tmpRole;
-            for (; i < len; ++i) {
-                tmpRole = rolesEl[i];
-                if (typeof tmpRole != 'string' || tmpRole.trim() == "") {
-                    errMsg = 'Invalid schema: Invalid element.';
-                    searchProperty(p_at, 'roles');
-                }
-            }
-        }
-    }
-
-    // check value of "auth"
-    function validateAuth(currentObject) {
-        
-        var authEl = currentObject.auth;
-        if (typeof authEl != 'string' || authEl.trim() == '') {
-            errMsg = 'Invalid schema: Invalid element.';
-            searchProperty(p_at, 'auth');
-        }
-    }
-        
-    // function duplicateClassName (className) {
-    //     if (usedClassNames.length) {
-    //         for (var el in usedClassNames) {
-    //             if (usedClassNames[el] == className) {
-    //                 return true;
-    //             }
-    //         }
-    //     }
-    //     usedClassNames.push(className);
-    //     return false;
-    // };
-    // validate_semantic = require("./validator/semantic");
+        // duplicateClassName = function(className) {
+        //     if (usedClassNames.length) {
+        //         for (var el in usedClassNames) {
+        //             if (usedClassNames[el] == className) {
+        //                 return true;
+        //             }
+        //         }
+        //     }
+        //     usedClassNames.push(className);
+        //     return false;
+        // };
+        // validate_semantic = require("./validator/semantic");
     
     return function(doc, dataModel) {
         
-        var arrEl,// iterator
-            // conver text input to json
+        /************* PARAMETERS ****************
+         * 
+         * text_json: string of text input
+         * dataModel: array of data model objects
+         *       
+         ************* PARAMETERS ****************/
+
+        /********** VARIABLES ********/
+        var // index of relative error
+            at = 0,
+            // error message variable
+            errMsg,
+            // relative error index
+            errInd,
+            // string of text input
+            text = doc,
+            // length of text input
+            textLength = text.length,
+            // conver text input into json
             object_json = JSON.parse(doc);
+            // usedClassNames = [];
+        /********** VARIABLES ********/
 
-        // initial assignment of values to variables
-        text = doc;// string of text input
-        textLength = text.length;// length of text input
-        // get postition of first non-blank char
-        at = text.search(/[^\s]/);
-        // usedClassNames = []; // for duplication check of class names
-
-        // get class names of data model
+        // get class names from data model
         setLists(dataModel);
         
-        /****** CHECK INPUT TYPE ******/
+        // get postition of first non-blank char
+        at = text.search(/[^\s]/);
+
+        
+        /*********************************** START VALIDATOR *********************************/
+
+        /*** CHECK INPUT TYPE ***/
         // ARRAY was not initialized
         if (!Array.isArray(object_json)) {
             errMsg = 'Invalid schema: Must initialize an array.';
+            // errInd = at+1;
             error(errMsg, at);
         } // ARRAY was initialized
 
 
-        /****** COUNT NUMBER OF ARRAY ELEMENTS ******/
+        /*** CHECK NUMBER ELEMENTS OF ARRAY ***/
         // undefined or empty ARRAY
         if (object_json === undefined || !object_json.length) {
             errMsg = 'Invalid schema: Array is empty. Expect object element.';
+            // errInd = at+1;
             error(errMsg, at);
         } // ARRAY not undenfined and not empty
 
 
-        /****** VALIDATE EACH ELEMENT OF THE ARRAY ******/
-        var currentArrEl,
-            className,
-            permissionArray,
-            str,
-            patt,
-            permEl;
+        /*** VALIDATE EACH ELEMENT OF THE ARRAY ***/
+        // iterate over object element
+        var // iterator
+            arrEl,
+            // currently accessing object element
+            currentArrEl;
 
-        // iterate over array elements
         for (arrEl in object_json) {
+
+            // accessing object element
             currentArrEl = object_json[arrEl];
-            validateOuterBlock(currentArrEl);
-            className = currentArrEl.class;
-            permissionArray = currentArrEl.permission;
-            str = text.slice(at);
-            patt = new RegExp('"permission"\\s*:');
-            p_at = text.indexOf('[', at + str.search(patt));
-                
-            for (permEl in permissionArray) {
-                validateInnerBlock(permissionArray[permEl], className);
-                p_at = findNextBlockIndex(p_at+1);
+
+            /*** TYPE CHECK OF ELEMENT ***/
+            // type: array
+            if (Array.isArray(currentArrEl)) {
+                errMsg = 'Invalid schema: Element must be object.';
+                errInd = text.indexOf('[', at+1);
+                error(errMsg, errInd);
             }
-            at = findNextBlockIndex(at+1);
+            // type: string, number
+            else if (typeof currentArrEl == 'string' || typeof currentArrEl == 'number') {
+                errMsg = 'Invalid schema: Element must be object.';
+                errInd = text.indexOf(currentArrEl, at);
+                error(errMsg, errInd);
+            }/*** END TYPE CHECK OF ELEMENT ***/
+
+            
+            /*** VALIDATE OBJECT ***
+             * 
+             * "class": "<string>"
+             * "permission": []
+             * 
+             *** VALIDATE OBJECT ***/
+
+            // get properties of object as a string array 
+            var propertyList = Object.keys(currentArrEl);
+
+            // empty object
+            if (!propertyList.length) {
+                errMsg = 'Invalid schema: Empty object.';
+                errInd = text.indexOf('{', at);
+                error(errMsg, errInd);
+            }// object not empty
+
+            /****** FILTER UNWANTED PROPERTIES ******/
+            var // iterator
+                eachProperty,
+                // currently accessing property
+                currentProperty,
+                // true: found - false: not found
+                classProperty = false,
+                permissionProperty = false;
+
+            for (eachProperty in propertyList) {
+
+                currentProperty = propertyList[eachProperty];
+                switch(currentProperty) {
+                    case 'class':
+                        classProperty = true;
+                        break;
+                    case 'permission':
+                        permissionProperty = true;
+                        break;
+                    default:
+                        /*********** REMOVE UNWANTED PROPERTY *************/
+                        searchProperty(text, at, currentProperty);
+                }
+            }/****** END OF FILTER UNWANTED PROPERTIES ******/
+
+            
+            /****
+             *  FILTER ONLY REMOVES UNWANTED PROPERTIES
+             *   AND CHECKS FOR ATTENDANCE OF CLASS AND PERMISSION
+             *    CLASS OR PERMISSION MAYBE 'ABSENT' IN THE ATTENDANCE LIST
+             *      => RECHECK
+             **************************************************************/
+
+            /********** PROPERTY CLASS *************/
+            // missing class
+            if (!classProperty) {
+                errMsg = 'Invalid schema: Missing property "class".';
+                errInd = text.indexOf('{', at);
+                error(errMsg, errInd);
+            } // class exists
+
+            var classValue = currentArrEl.class;
+            // value of class is not string or empty string
+            if (typeof classValue != "string" || classValue.trim() == "") {
+                errMsg = 'Invalid schema: Class name must be a non-empty string.';
+                searchProperty(text, at, 'class', errMsg);
+            }
+
+            // class name does not belong to data model
+            if (validateClassName(classValue)) {
+                errMsg = 'SemanticError: Class name "' +classValue+ '" not found.';
+                searchProperty(text, at, 'class', errMsg);
+            }
+
+            // if (duplicateClassName(classValue)) {
+            //     error('SemanticError: Duplicated class name "' +classValue+ '"', text.indexOf('class', at+1));
+            // }
+            /********** VALID PROPERTY CLASS *************/
+
+
+            /******** PROPERTY PERMISSION *********/
+            // missing permission
+            if (!permissionProperty) {
+                errMsg = 'Invalid schema: Missing property "permission".'
+                errInd = text.indexOf('{', at);
+                error(errMsg, errInd);
+            }// permission exists
+
+            var permissionValue = currentArrEl.permission;
+            // permission is not array
+            if (!Array.isArray(permissionValue)) {
+                // errMsg = 'Invalid schema: "permission" must be array.';
+                searchProperty(text, at, 'permission');
+            }// permission is array
+
+            // check elements of array "permission"
+            var // number of elements of array "permission"
+                permLength = permissionValue.length,
+                str = text.slice(at),
+                patt = new RegExp('"permission"\\s*:\\s*(?:(\\[.*\\]\\s*[\\},]))'),
+                beginPermArrIndex = text.indexOf('[', at + str.search(patt));
+                // get index the array
+                // beginPermArrIndex = text.indexOf('[', at+1);
+
+            // array "permission" has no element
+            if (!permLength) {
+                errMsg = 'Invalid schema: Array "permission" empty.';
+                searchProperty(text, at, 'permission', errMsg);
+            } // array not empty
+            else { 
+                var // iterator
+                    p_i = 0,
+                    // start index of array "permission"
+                    p_at = beginPermArrIndex,
+                    // currently accessing object element of the array
+                    p_currentObject;
+
+                // loop through each element of the array 'permission'
+                for (; p_i < permLength; ++p_i) {
+
+                    // currently accessing object element
+                    p_currentObject = permissionValue[p_i];
+
+                    // array element is not object
+                    if (typeof p_currentObject === 'object' && !Array.isArray(p_currentObject)) {
+                        errMsg = 'Invalid schema: Element of "permission" must be object.';
+                        searchProperty(text, at, 'permission', errMsg);
+                    }// element is object
+
+
+                    /******* FILTER UNWANTED PROPERTIES OF OBJECT ELEMENT *******/
+                    // get all properties into an array
+                    var p_propertyList = Object.keys(p_currentObject);
+
+                    // loop through each property
+                    var // iterator
+                        p_loop,
+                        // currently accessing property of object
+                        p_tmpProperty,
+                        // varibles to check attendance of properties
+                        p_resources = false,
+                        p_actions = false,
+                        p_default = false,
+                        p_roles = false,
+                        p_auth = false;
+
+                    // object has no property (empty object)
+                    if (!p_propertyList.length) {
+                        error('Invalid schema: Object is EMPTY, please INSERT property "resources" with FORMAT  "resources": ["<String>"]', text.indexOf('{', p_at+1));
+                    }
+                    // the object has at least one property
+                    for (p_loop in p_propertyList) {
+                        p_tmpProperty = p_propertyList[p_loop];
+                        if (!p_resources && p_tmpProperty == "resources") {
+                            p_resources = true;
+                        } else if (!p_actions && p_tmpProperty == "actions") {
+                            p_actions = true;
+                        } else if (!p_default && p_tmpProperty == "default") {
+                            p_default = true;
+                        } else if (!p_roles && p_tmpProperty == "roles") {
+                            p_roles = true;
+                        } else if (!p_auth && p_tmpProperty == "auth") {
+                            p_auth = true;
+                        } else {
+                            error('Invalid schema: Property "' +p_tmpProperty+ '" is NOT NEEDED, please REMOVE it and its corresponding value', text.indexOf(p_tmpProperty, p_at+1));
+                        }
+                    }/******* END OF FILTER UNWANTED PROPERTIES OF OBJECT ELEMENT *******/
+
+
+                    // a check for existence of mandatory properties "resources" and "actions"
+                    if (!p_resources) {
+                        error('Invalid schema: MISSING PROPERTY "resources", please ADD it to this object with FORMAT  "resources": ["<string>"]', text.indexOf("{", p_at+1));
+                    }
+                    if (!p_actions) {
+                        error('Invalid schema: MISSING PROPERTY "actions", please ADD it to this object with FORMAT  "actions": ["<string>"] (string is one of "create", "read", "update" or "delete")', text.indexOf("{", p_at+1));
+                    }                    
+
+                    var p_counter = [];
+                    p_roles ? p_counter.push("auth") : {};
+                    p_auth ? p_counter.push("roles") : {};
+                    var p_counterLen = p_counter.length;
+
+                    // case 1: no "default" but only "roles" or "auth"
+                    if (!p_default && p_counterLen  == 1) {
+                        var missingProp = p_counter[0],
+                            format = '';
+                        if (missingProp == 'roles') {
+                            format = '  "roles": ["<string>"]';
+                        } else {
+                            format = '  "auth": "<string>"';
+                        }
+                        error('Invalid schema: MISSING PROPERTY "' +missingProp+ '", please ADD it to this object with FORMAT' +format, text.indexOf("{", p_at+1));
+                    }
+                    // case 2: "default" or at least "roles" or "auth"
+                    if (p_default && p_counterLen >= 1) {
+                        var tmp = 'Invalid schema: REMOVE property "default"  OR  ';
+                        if (p_counterLen == 1) {
+                            tmp += 'property "' +(p_counter[0] == "auth" ? "roles" : "auth")+ '"';
+                        } else {
+                            tmp += 'BOTH properties "' +p_counter[1]+ '" and "' +p_counter[0]+ '"';
+                        }
+                        error(tmp, text.indexOf("{", p_at+1));
+                    }
+                    // case 3: no "default" and no "roles" or "auth"
+                    if (!p_default && p_counterLen == 0) {
+                        error('Invalid schema: MISSING PROPERTY. Please ADD ONLY property "default" with FORMAT  "default": "<string>"\n\tOR BOTH properties  "roles": ["<string>"] and "auth": "<string>"', text.indexOf("{", p_at+1));
+                    }
+
+                    /*** CHECKING VALUES OF PROPERTIES  ***/
+                    // resources array of string
+                    // actions   array of string c,r,u,d
+                    // default   string
+                    // roles     array of string
+                    // auth      string
+
+                    /******* VALIDATE PROPERTY "RESOURCES" *******/
+                    if (!Array.isArray(p_currentObject.resources)) {
+                        var invalidType;
+                        if (typeof p_currentObject.resources == 'object') {
+                            invalidType = '"{ }"';
+                        } else if (typeof p_currentObject.resources == 'string') {
+                            invalidType = 'string "' +permissionValue+ '"';
+                        } else {
+                            invalidType = 'number ' +permissionValue;
+                        }
+                        error('Invalid schema: Property "resources" MUST BE an ARRAY, please REPLACE  ' +invalidType+ ' with "[]"', text.indexOf("resources", p_at+1));
+                    } else { // check elements of the array
+                        if (!p_currentObject.resources.length) { // empty array
+                            error('Invalid schema: Array "resources" EMPTY, please ADD at least a NON-EMPTY string to it', text.indexOf("resources", p_at+1));
+                        } else { // array NOT empty
+                            var resourcesEl = p_currentObject.resources,
+                                str = '',
+                                el;
+                            for (el in resourcesEl) {
+                                str = resourcesEl[el];
+                                if (typeof str != "string" || str.trim() == "") {
+                                    error('Invalid schema: Element of array "resources" is NOT a STRING or an EMPTY STRING', text.indexOf("resources", p_at+1));
+                                }
+                                if (!validateResources(classValue, str)) {
+                                    error('SemanticError: Element "'+str+'" of resources not matched. Please remove it and press (Ctrl+Space) for suggestions.', text.indexOf("resources", p_at+1));
+                                }
+                            }
+                        }
+                    }
+
+                    /******* VALIDATE PROPERTY "ACTIONS" *******/
+                    if (!Array.isArray(p_currentObject.actions)) {
+                        var invalidType;
+                        if (typeof p_currentObject.actions == 'object') {
+                            invalidType = '"{ }"';
+                        } else if (typeof p_currentObject.actions == 'string') {
+                            invalidType = 'string "' +p_currentObject.actions+ '"';
+                        } else {
+                            invalidType = 'number ' +p_currentObject.actions;
+                        }
+                        error('Invalid schema: Property "actions" is NOT an ARRAY, please REPLACE  '+invalidType+ ' with "[]"', text.indexOf("actions", p_at+1));
+                    } else { // check elements of the array
+                        if (!p_currentObject.actions.length) { // empty array
+                            error('Invalid schema: Array "actions" is EMPTY, please add at least a string of "create", "read", "update" or "delete" to it', text.indexOf("actions", p_at+1));
+                        } else { // array NOT empty
+                            var actionsEl = p_currentObject.actions,
+                                str = '',
+                                el;
+                            var create = false,
+                                read = false,
+                                update = false,
+                                del = false;
+                            for (el in actionsEl) {
+                                str = actionsEl[el];
+                                if (typeof str != "string" || str.trim() == "") {
+                                    error('Invalid schema: Element of array "actions" is NOT a STRING or an EMPTY STRING, please ADD at least a string of "create", "read", "update" or "delete"', text.indexOf("actions", p_at+1));
+                                } else { // NOT EMPTY STRING
+                                    // the string must be one of 'create', 'read', update' or 'delete'
+                                    var str_trimmed = str.trim();
+                                    if (str_trimmed == 'create') {
+                                        if (!create) { // first time inserted
+                                            create = true;
+                                        } else {
+                                            error('Invalid schema: Array "actions" has duplicated element "create"', text.indexOf('actions', p_at+1));
+                                        }
+                                    } else if (str_trimmed == 'read') {
+                                        if (!read) { // first time inserted
+                                            read = true;
+                                        } else {
+                                            error('Invalid schema: Array "actions" has duplicated element "read"', text.indexOf('actions', p_at+1));
+                                        }
+                                    } else if (str_trimmed == 'update') {
+                                        if (!update) { // first time inserted
+                                            update = true;
+                                        } else {
+                                            error('Invalid schema: Array "actions" has duplicated element "update"', text.indexOf('actions', p_at+1));
+                                        }
+                                    } else if (str_trimmed == 'delete') {
+                                        if (!del) { // first time inserted
+                                            del = true;
+                                        } else {
+                                            error('Invalid schema: Array "actions" has duplicated element "delete"', text.indexOf('actions', p_at+1));
+                                        }
+                                    } else {
+                                        error('Invalid schema: String element "' +str+ '" of array "actions" must be one of "create", "read", "update", "delete"', text.indexOf('actions', p_at+1));
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                /**** CHECK FOR EXISTENCE OF PROPERTY 'DEFAULT' ****/
+                    // if object has no property 'default' -> 'roles' and 'auth'
+
+                    if (p_default) { // has 'default'
+                        var tmpDefault = p_currentObject.default;
+                        if (typeof tmpDefault != "string") { // NOT a string
+                            error('Invalid schema: Property "default" NOT of type STRING, please REPLACE its value with  "<string>"', text.indexOf('default', p_at+1));
+                        } else { // VALID string
+                            if (tmpDefault.trim() == "") {
+                                error('Invalid schema: String "default" is EMPTY', text.indexOf('default', p_at+1));
+                            }
+                        }
+                    } else { // has 'roles' and 'auth'
+
+                        /*** property 'roles' ******/
+                        var rolesEl = p_currentObject.roles;
+                        if (!Array.isArray(rolesEl)) { // NOT ARRAY
+                            error('Invalid schema: Property "roles" is NOT an ARRAY, please REPLACE its value with a string array  ["<string>"]', text.indexOf('roles', p_at+1));
+                        } else { // VALID ARRAY
+                            if (!rolesEl.length) { // EMPTY ARRAY
+                                error('Invalid schema: Array "roles" is EMPTY, please ADD at least a NON-EMPTY string to it', text.indexOf('roles', p_at+1));
+                            } else { // NOT EMPTY ARRAY
+                                var i = 0,
+                                    len = rolesEl.length,
+                                    tmpRole;
+                                for (; i < len; ++i) {
+                                    tmpRole = rolesEl[i];
+                                    if (typeof tmpRole != 'string' || tmpRole.trim() == "") {
+                                        error('Invalid schema: Element of array "roles" is NOT of type STRING or EMPTY STRING', text.indexOf('roles', p_at+1));
+                                    }
+                                }
+                            }
+                        }
+
+                        /*** property 'auth' ******/
+                        var authEl = p_currentObject.auth;
+                        if (typeof authEl != 'string') { // NOT STRING
+                            error('Invalid schema: Property "auth" is NOT of type STRING', text.indexOf('auth', p_at+1));
+                        } else { // VALID STRING
+                            if (authEl.trim() == '') {
+                                error('Invalid schema: String "auth" is EMPTY', text.indexOf('auth', p_at+1));
+                            }
+                        }
+                    }
+                    p_at = findEndIndex(p_at+1, textLength);
+                }
+            }
+            at = findEndIndex(at+1, textLength);
         }
     }
 });

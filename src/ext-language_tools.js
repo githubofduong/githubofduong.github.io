@@ -2166,7 +2166,7 @@ function filterProperties(propertyList, doc, lower, upper) {
 
 function filterArrValues(property, values, doc, lower, upper) {
     var str = doc.slice(lower, upper),
-        patt = new RegExp('"' +property+ '"\\s*:\\s*\\[.*\\]\\s*[,}]'),
+        patt = new RegExp('"' +property+ '"\\s*:\\s*\\[.*\\]'),
         res = str.match(patt)[0],
         str = res.match(/\[.*\]/)[0],
         arr = [];
