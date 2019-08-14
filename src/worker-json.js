@@ -1699,7 +1699,8 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         text,// string of text input from editor
         textLength = 0,// length of text input
         classList = [],// array of valid data model objects
-        classNameList = [];// string array of valid class names of data model
+        classNameList = [],// string array of valid class names of data model
+        attributesList = [];
         // usedClassNames = [],// array of string
         
     // announce error messages
@@ -1717,7 +1718,7 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         // c: current index
         var i = 0,
             lastChar = '',
-            currentChar = '',
+            currentChar,
             insideDoubleQuotes = false;
 
         while (c < textLength) {
@@ -1734,13 +1735,14 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
     }
 
     function validateClassName (className) {
-        if (!classNameList.length) { return false; }
+        if (!classNameList.length) { return true; }
         for (var name in classNameList) {
             if (classNameList[name] == className) {
-                return false;
+                setAttributesList(className);
+                return true;
             }
         }
-        return true;
+        return false;
     }
 
     // all strings must belong to property "attributes" data model
@@ -1855,16 +1857,16 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
 
 
         /****** VALIDATE INPUT OF PROPERTY CLASS ******/
-        var classValue = currentArrEl.class;
+        var className = currentArrEl.class;
         // value of class is not string or empty string
-        if (typeof classValue != "string" || classValue.trim() == "") {
+        if (typeof className != "string" || className.trim() == "") {
             errMsg = 'Invalid schema: Invalid class name.';
             searchProperty(at, 'class');
         }
 
         // class name does not belong to data model
-        if (validateClassName(classValue)) {
-            errMsg = 'SemanticError: Class name "' +classValue+ '" not found.';
+        if (!validateClassName(className)) {
+            errMsg = 'SemanticError: Class name "' +className+ '" not found.';
             searchProperty(at, 'class');
         }
 
@@ -1888,15 +1890,15 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
 
         
         /****** VALIDATE INPUT OF PROPERTY PERMISSION ******/
-        var permissionValue = currentArrEl.permission;
+        var permissionArray = currentArrEl.permission;
         // permission is not array
-        if (!Array.isArray(permissionValue)) {
+        if (!Array.isArray(permissionArray)) {
             errMsg = 'Invalid schema: "permission" must be array.';
             searchProperty(at, 'permission');
         }// permission is array
 
         // number of elements of array "permission"
-        var permLength = permissionValue.length;
+        var permLength = permissionArray.length;
         // array "permission" empty
         if (!permLength) {
             errMsg = 'Invalid schema: Array "permission" empty.';
@@ -1904,7 +1906,7 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         } // array not empty
         /****** END OF VALIDATE INPUT OF PROPERTY PERMISSION ******/
 
-        return permLength;
+        // return permLength;
     }
 
     // check the existence of properties:
@@ -2022,24 +2024,21 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
             if (!currentObject.resources.length) { // array empty
                 errMsg = 'Invalid schema: Array "resources" empty.';
                 searchProperty(p_at, 'resources');
-            } else { // array NOT empty
-                var resourcesEl = currentObject.resources,
-                    str = '',
-                    el;
-                // iterate over array elements
-                for (el in resourcesEl) {
-                    str = resourcesEl[el];
-                    if (typeof str != "string" || str.trim() == "") {
-                        errMsg = 'Invalid schema: Invalid element.';
-                        searchProperty(p_at, 'resources');
-                    }
-                    if (!validateResourcesValues(className, str)) {
-                        errMsg = 'Invalid schema: String element "' +str+ '" not found.';
-                        searchProperty(p_at, 'resources');
-                    }
-                }
             }
+            filterDuplicateArrEls('resources', attributesList, currentObject.resources);
         }
+    }
+
+    function setAttributesList(className) {
+        attributesList = [];
+        classList.forEach(function(currentValue) {
+            if (currentValue.class == className) {
+                currentValue.attributes.forEach(function(currentAttr) {
+                    attributesList.push(currentAttr.name);
+                });
+            }
+            return;
+        });
     }
 
     // validate values of array "actions"
@@ -2054,56 +2053,8 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
             if (!currentObject.actions.length) { // array empty
                 errMsg = 'Invalid schema: Array "actions" empty.';
                 searchProperty(p_at, 'actions');
-            } else { // array NOT empty
-                var actionsEl = currentObject.actions,
-                    str,// currently accessing element
-                    el,// iterator
-                    // marking the existence of each property
-                    // true: found and false: not found
-                    create = false,
-                    read =  false,
-                    update = false,
-                    del = false;
-                // iterate over array elements
-                for (el in actionsEl) {
-                    str = actionsEl[el];
-                    if (typeof str != "string" || str.trim() == "") {
-                        errMsg = 'Invalid schema: Invalid element.';
-                        searchProperty(p_at, 'actions');
-                    }// valid string element
-                    // the string must be one of 'create', 'read', update' or 'delete'
-                    switch(str.trim()) {
-                        case 'create':
-                            create
-                                ? (errMsg = 'Invalid schema: "create" duplicated.',
-                                    searchProperty(p_at, 'actions'))
-                                : create = true;
-                            break;
-                        case 'read':
-                            read
-                                ? (errMsg = 'Invalid schema: "read" duplicated.',
-                                    searchProperty(p_at, 'actions'))
-                                : read = true;
-                            break;
-                        case 'update':
-                            update
-                                ? (errMsg = 'Invalid schema: "update" duplicated.',
-                                    searchProperty(p_at, 'actions'))
-                                : update = true;
-                            break;
-                        case 'delete':
-                            del
-                                ? (errMsg = 'Invalid schema: "delete" duplicated.',
-                                    searchProperty(p_at, 'actions'))
-                                : del = true;
-                            break;
-                        default:
-                            errMsg = 'Invalid schema: "' +str.trim()+ '" not valid.';
-                            searchProperty(p_at, 'actions');
-                            break;
-                    }
-                }
             }
+            filterDuplicateArrEls('actions', ['create', 'read', 'update', 'delete'], currentObject.actions);
         }
     }
 
@@ -2130,17 +2081,8 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         if (!len) {// array empty
             errMsg = 'Invalid schema: Array "roles" empty.';
             searchProperty(p_at, 'roles');
-        } else { // array not empty
-            var i = 0,
-                tmpRole;
-            for (; i < len; ++i) {
-                tmpRole = rolesEl[i];
-                if (typeof tmpRole != 'string' || tmpRole.trim() == "") {
-                    errMsg = 'Invalid schema: Invalid element.';
-                    searchProperty(p_at, 'roles');
-                }
-            }
-        }
+        } 
+        filterDuplicateArrEls('roles', ['admin', 'lecturer'], rolesEl);
     }
 
     // check value of "auth"
@@ -2151,6 +2093,29 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
             errMsg = 'Invalid schema: Invalid element.';
             searchProperty(p_at, 'auth');
         }
+    }
+
+    // check duplicate array elements
+    function filterDuplicateArrEls(propertyName, fullList, inputList) {
+        var fullListIndex,
+            dupCounter = [];
+        inputList.forEach(function(currentValue) {
+            fullListIndex = fullList.indexOf(currentValue);
+            switch(fullListIndex) {
+                case -1:
+                    errMsg = 'Invalid schema: '+currentValue+' invalid.';
+                    searchProperty(p_at, propertyName);
+                    break;
+                default:
+                    if (!dupCounter[fullListIndex]) {
+                        dupCounter[fullListIndex] = true;
+                    } else {
+                        errMsg = 'Invalid schema: "'+currentValue+'" duplicate.';
+                        searchProperty(p_at, propertyName);
+                    }
+                    break;
+            }
+        });
     }
         
     // function duplicateClassName (className) {
@@ -2225,66 +2190,6 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
     }
 });
 
-// ace.define("ace/mode/validator/semantic", [], function(require, exports, module){
-// // "use strict";
-
-//     var text,
-//         error = function (m, p) {
-
-//             throw {
-//                 name:    'InvalidSemantic',
-//                 message: m,
-//                 at:      p,
-//                 text:    text
-//             };
-//         },
-//         findEndIndex = function(i, j, sample_class, txt) {
-//             var c = 0, // iterate each char
-//                 o = -1,// marking object index
-//                 t = 0, // marking end of object
-//                 currentChar = '',
-//                 lastChar = '',
-//                 insideDoubleQuotes = false;
-//             while (o < j) {
-//                 currentChar = text.charAt(c);
-//                 if (currentChar == '"' && lastChar != '\\') { insideDoubleQuotes = !insideDoubleQuotes; }
-//                 else if (currentChar == '{' && !insideDoubleQuotes) { ++t; }
-//                 else if (currentChar == '}' && !insideDoubleQuotes) {
-//                     --t;
-//                     if (!t) { ++o; }
-//                 }
-//                 if (o == i) {
-//                     i = txt.lastIndexOf(sample_class, c);
-//                 }
-//                 ++c;
-//                 lastChar = currentChar;
-//             }
-//             j = txt.lastIndexOf(sample_class, c);
-//             return {i: i, j: j};
-//         }
-    
-//     return function(text_json, doc) {
-//         text = text_json;
-        
-//         var sample_class,
-//             json_object = JSON.parse(text),
-//             arrLen = json_object.length;
-
-//         for (var i = 0; i < arrLen-1; ++i) {
-//             sample_class = json_object[i].class;
-//             for (var j = i+1; j < arrLen; ++j) {
-//                 if (json_object[j].class == sample_class) {
-//                     var indices = findEndIndex(i, j, sample_class, text_json);
-//                     var index = doc.indexToPosition(indices.i-1);
-//                         index = index.row + 1;
-//                     error('Semantic error: Class name "' +sample_class+ '" was declared at line ' +index+ ', please change to a different name', indices.j);
-//                 }
-//             }
-//         }
-
-//     }
-// });
-/************************************************** */
 ace.define("ace/mode/json_worker",[], function(require, exports, module) {
 // "use strict";
 
@@ -2292,12 +2197,8 @@ var oop = require("../lib/oop");
 var Mirror = require("../worker/mirror").Mirror;
 var parse = require("./json/json_parse");
 var validate_schema = require("./validator/schema");
-// var validate_semantic = require("./validator/semantic");
-
-var JsonWorker = exports.JsonWorker = function(sender) {//console.log("new JsonWorker(sender)");
+var JsonWorker = exports.JsonWorker = function(sender) {
 // console.log(arguments.callee.caller.toString());
-
-//oop.inherits(JsonWorker, Mirror); below
 
     Mirror.call(this, sender);
     this.setTimeout(200);
@@ -2315,7 +2216,6 @@ oop.inherits(JsonWorker, Mirror);
         this.dataModel = [];
         for (;i < lim; ++i) {
             this.dataModel.push(arguments[i]);
-            // console.log(arguments[i]);
         }
     }
 
@@ -2330,8 +2230,7 @@ oop.inherits(JsonWorker, Mirror);
         try {
             if (value) {
                 parse(value);
-                validate_schema(value, dataModel, this.doc);
-                // validate_semantic(value, this.doc);
+                validate_schema(value, dataModel);
             }
         } catch (e) {
             var pos = this.doc.indexToPosition(e.at-1);
@@ -2346,9 +2245,8 @@ oop.inherits(JsonWorker, Mirror);
     };
 
 }).call(JsonWorker.prototype);
-
 });
-/************************************************** */
+
 ace.define("ace/lib/es5-shim",[], function(require, exports, module) {
 
 function Empty() {}
