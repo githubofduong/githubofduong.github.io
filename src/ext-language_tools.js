@@ -1940,7 +1940,7 @@ function getResources(className) {
 }
 
 // function to find the exact property or class name for auto-completion
-function findTermInRange(lowerBound, upperBound, terms, doc) {
+function findTermInRange(lowerBound, upperBound, terms, doc, cursorIndex) {
     
     /*******************  PARAMETERS  *************************
      * lowerBound, upperBound: indices of the range to search
@@ -1962,6 +1962,8 @@ function findTermInRange(lowerBound, upperBound, terms, doc) {
         patt;      // search pattern, RegExp()
     /*******************  VARIABLES  *************************/ 
 
+    cursorIndex = cursorIndex || upperBound;
+    cursorIndex -= lowerBound;
     // classify array terms
     if (typeof terms[0] == 'object') {
         terms.forEach(function(currentEl, index, arr) {
@@ -1981,7 +1983,7 @@ function findTermInRange(lowerBound, upperBound, terms, doc) {
         // find the term's index
         termIndex = range.search(patt);
         // the higher the index, the closer the property to the cursor
-        if (termIndex > oldIndex) {
+        if (oldIndex < termIndex && termIndex < cursorIndex) {
             oldIndex = termIndex; // store the term's index
             termName = tmp_term;  // store the term's name
         }
@@ -2211,7 +2213,8 @@ function getKeywordList(editor, pos) {
             objIndex = res.objIndex;
 
         // double quotes on the right side
-        if (leftChar === ':' && blockLevel === 0) {
+        // 
+        if (leftChar === ':' && findTermInRange(left_0, c, ['class', 'permission'], doc, cursorIndex) === 'class') {
             return filterClassNames(classList, doc);;
         } else {
 
@@ -2223,7 +2226,7 @@ function getKeywordList(editor, pos) {
                 
                 switch (propertyName) {
                     case 'resources':
-                        className = findTermInRange(left_0, c, classList, doc);
+                        className = findTermInRange(left_0, c, classList, doc, cursorIndex);
                         kwList = getResources(className);
                         kwList = filterArrValues('resources', kwList, doc, left_1, c);
                         return editor.session.$mode.getCompletions(kwList, 'resources');
