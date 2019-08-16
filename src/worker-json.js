@@ -1841,7 +1841,8 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
                     break;
                 default:
                     /****** REMOVE UNWANTED PROPERTY ******/
-                    searchProperty(text, at, currentProperty);
+                    errMsg = 'Invalid schema: Remove "'+currentProperty+'".';
+                    searchProperty(at, currentProperty);
             }
         }/****** END OF FILTER UNWANTED PROPERTIES ******/
 
@@ -1956,18 +1957,37 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
                     validateActions(currentObject);
                     break;
                 case 'default':
-                    p_default = true;
-                    validateDefault(currentObject);
-                    break;
+                    if (p_roles) {
+                        errMsg = 'Invalid schema: Remove "default" or "roles".';
+                    } else if (p_auth) {
+                        errMsg = 'Invalid schema: Remove "default" or "auth".';
+                    } else {
+                        p_default = true;
+                        validateDefault(currentObject);
+                        break;
+                    }
+                    errInd = text.indexOf('{', p_at);
+                    error(errMsg, errInd);
                 case 'roles':
+                    if (p_default) {
+                        errMsg = 'Invalid schema: Remove "default" or "roles".';
+                        errInd = text.indexOf('{', p_at);
+                        error(errMsg, errInd);
+                    }
                     p_roles = true;
                     validateRoles(currentObject);
                     break;
                 case 'auth':
+                    if (p_default) {
+                        errMsg = 'Invalid schema: Remove "default" or "auth".';
+                        errInd = text.indexOf('{', p_at);
+                        error(errMsg, errInd);
+                    }
                     p_auth = true;
                     validateAuth(currentObject);
                     break;
                 default:
+                    errMsg = 'Invalid schema: Remove "' +tmpProperty+ '".';
                     searchProperty(p_at, tmpProperty);
             }
         }/****** END OF FILTER UNWANTED PROPERTIES OF OBJECT ELEMENT ******/
@@ -1985,31 +2005,11 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
             errInd = text.indexOf("{", p_at+1);
             error(errMsg, errInd);
         }// "actions" exists, check "default"
-        else if (p_default) { // "default" exists
-            if (p_roles) {// "roles" exists => suggest a removal
-                errMsg = 'Invalid schema: Remove "default" or "roles".';
-                errInd = text.indexOf("{", p_at+1);
-                error(errMsg, errInd);
-            } else if (p_auth) { // "auth" exists => suggest a removal
-                errMsg = 'Invalid schema: Remove "default" or "auth".';
-                errInd = text.indexOf("{", p_at+1);
-                error(errMsg, errInd);
-            }
-        }// no "default", check "roles", "auth"
-        else if (!p_default) {
-            if (!p_roles && p_auth) {
-                errMsg = 'Invalid schema: Missing property "roles".';
-                errInd = text.indexOf("{", p_at+1);
-                error(errMsg, errInd);
-            } else if (!p_auth && p_roles) {
-                errMsg = 'Invalid schema: Missing property "auth".';
-                errInd = text.indexOf("{", p_at+1);
-                error(errMsg, errInd);
-            } else if (!p_roles && !p_auth) {
-                errMsg = 'Invalid schema: Missing property "default" or properties "roles", "auth".';
-                errInd = text.indexOf("{", p_at+1);
-                error(errMsg, errInd);
-            }
+        else if (!p_default && (!p_roles || !p_auth)) {
+            errMsg = 'Invalid schema: Missing property ';
+            errMsg += p_roles ? '"auth".' : (p_auth ? '"roles".' : '"default" or "roles", "auth".');
+            errInd = text.indexOf('{', p_at);
+            error(errMsg, errInd);
         }/****** END OF RECHECK THE EXISTENCE OF PROPERTIES ******/
     }
 
@@ -2018,7 +2018,7 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
 
         // "resources" is not array
         if (!Array.isArray(currentObject.resources)) {
-            errMsg = 'Invalid schema: Property "resources" must be array.';
+            errMsg = 'Invalid schema: Value of "resources" must be array.';
             searchProperty(p_at, 'resources');
         } else { // check array elements
             if (!currentObject.resources.length) { // array empty
@@ -2047,7 +2047,7 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         /******* VALIDATE PROPERTY "ACTIONS" *******/
         // "actions" is not array
         if (!Array.isArray(currentObject.actions)) {
-            errMsg = 'Invalid schema: Property "actions" must be array.';
+            errMsg = 'Invalid schema: Value of "actions" must be array.';
             searchProperty(p_at, 'actions');
         } else { // check array elements
             if (!currentObject.actions.length) { // array empty
@@ -2062,7 +2062,7 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
     function validateDefault(currentObject) {
         var tmpDefault = currentObject.default;
         if (typeof tmpDefault != "string" || tmpDefault.trim() == "") {
-            errMsg = 'Invalid schema: Property "default" invalid.';
+            errMsg = 'Invalid schema: Value of "default" must be string.';
             searchProperty(p_at, 'default');
         }
     }
@@ -2073,7 +2073,7 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         var rolesEl = currentObject.roles,
             len;
         if (!Array.isArray(rolesEl)) {
-            errMsg = 'Invalid schema: Property "roles" must be array.';
+            errMsg = 'Invalid schema: Value of "roles" must be array.';
             searchProperty(p_at, 'roles');
         }// "roles" is array
 
@@ -2090,7 +2090,7 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         
         var authEl = currentObject.auth;
         if (typeof authEl != 'string' || authEl.trim() == '') {
-            errMsg = 'Invalid schema: Invalid element.';
+            errMsg = 'Invalid schema: Value of "auth" must be string.';
             searchProperty(p_at, 'auth');
         }
     }
@@ -2103,7 +2103,7 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
             fullListIndex = fullList.indexOf(currentValue);
             switch(fullListIndex) {
                 case -1:
-                    errMsg = 'Invalid schema: '+currentValue+' invalid.';
+                    errMsg = 'Invalid schema: "'+currentValue+'" invalid.';
                     searchProperty(p_at, propertyName);
                     break;
                 default:

@@ -1964,6 +1964,7 @@ function findTermInRange(lowerBound, upperBound, terms, doc, cursorIndex) {
 
     cursorIndex = cursorIndex || upperBound;
     cursorIndex -= lowerBound;
+    upperBound -= lowerBound;
     // classify array terms
     if (typeof terms[0] == 'object') {
         terms.forEach(function(currentEl, index, arr) {
@@ -1982,12 +1983,25 @@ function findTermInRange(lowerBound, upperBound, terms, doc, cursorIndex) {
         patt = new RegExp(str);
         // find the term's index
         termIndex = range.search(patt);
+// console.log('termIndex: '+termIndex);
+// console.log(tmp_term);
+// console.log(oldIndex);
+// console.log(cursorIndex)
         // the higher the index, the closer the property to the cursor
         if (oldIndex < termIndex && termIndex < cursorIndex) {
             oldIndex = termIndex; // store the term's index
             termName = tmp_term;  // store the term's name
         }
     }
+    
+    tmp_term = strStart +termName+ strEnd;
+    patt = new RegExp(tmp_term, 'gi');
+    if (range.match(patt).length > 1) {return '';}
+
+    str = range.substring(oldIndex, cursorIndex);
+    patt = new RegExp('"(.|\s)*"\s*:', 'gi');
+    if (str.match(patt).length > 1) {return '';}
+    
     return termName;
 }
 
@@ -2014,10 +2028,12 @@ function validateDoubleQuotes(cursorIndex, doc) {
         // to store last character and current character
         lastChar = '', currentChar,
         // to store index of the object the cursor is inside
-        objIndex = -1
-        ;
+        objIndex = -1;
     /**************** VARIABLES **********************/
 
+    // doc.search(/^\s*\[\s*\{[.\s]/)
+    if (doc.search(/(^\s*\[\s*\{)(?:(.|\s))*(\}\s*\]\s*$)/)) { return false; }
+    // console.log(doc.match(/(^\s*\[\s*\{)(?:(.|\s))*(\}\s*\]\s*$)/)[0]);
     // determine blockLevel
     while (c < cursorIndex) {
         currentChar = doc[c];
@@ -2212,21 +2228,62 @@ function getKeywordList(editor, pos) {
             left_1 = res.left_1,
             objIndex = res.objIndex;
 
+        function validateClass() { //console.log("validateClass()");
+            // var patt = new RegExp(/(?:"permission"\s*:\s*\[(.|\s)*\}\s*\])/);
+            var range = doc.substring(left_0, c),
+                tmpCursor = cursorIndex - left_0,
+                // lower = 0, upper = c - left_0,
+                classIndex = range.lastIndexOf('"class"', tmpCursor);
+// console.log(classIndex);
+            if (classIndex === -1) {return false;}
+            var str = range.substring(classIndex, tmpCursor),
+                tmp = str.search(/^"class"\s*:\s*"$/gi);
+// console.log(str);
+            if (tmp) {return false;}
+            
+            var patt = new RegExp(/"permission"\s*:\s*\[(.|\s)*\}\s*\]/gi),
+                pArr = range.match(patt);
+            // console.log(pArr[0]);
+            // console.log(pArr[1]);
+            // console.log(pArr.length);
+            // console.log(pArr);
+            if (pArr && pArr.length > 1) {return false;}
+            // console.log("passed");
+            // 0 perm: count "class" in range
+            
+            if (!pArr) {
+                str = range;
+            } else {
+                var pIndex = range.search(patt),
+                    len = range.match(patt)[0].length;
+                str = range.substring(0, pIndex) + range.substring(pIndex+len);
+            }
+            // 1 perm: count "class" from left_0 to perm and perm to c
+            //   class > 1 return false
+            var len = str.match(/"class"\s*:/).length;
+            if (len === 1) {return true;}
+            
+            return false;
+        }
         // double quotes on the right side
-        // 
-        if (leftChar === ':' && findTermInRange(left_0, c, ['class', 'permission'], doc, cursorIndex) === 'class') {
-            return filterClassNames(classList, doc);;
+        // findTermInRange(left_0, c, ['class', 'permission'], doc, cursorIndex) === 'class' &&
+        if (leftChar === ':' &&  !blockLevel) {
+            if (validateClass()) {
+                return filterClassNames(classList, doc);
+            }
+            return null;
         } else {
 
             // values for 'resources', 'actions', 'roles'
             if ((leftChar === '[' || leftChar === ',') && (rightChar === ']' || rightChar === ',')) {
 
                 // search for the corresponding property keyword
-                propertyName = findTermInRange(left_1, cursorIndex, propertyList_1, doc);
+                propertyName = findTermInRange(left_1, c, propertyList_1, doc, cursorIndex);
                 
                 switch (propertyName) {
                     case 'resources':
-                        className = findTermInRange(left_0, c, classList, doc, cursorIndex);
+                        className = findTermInRange(left_0, c, classList, doc);
+                        console.log(className);
                         kwList = getResources(className);
                         kwList = filterArrValues('resources', kwList, doc, left_1, c);
                         return editor.session.$mode.getCompletions(kwList, 'resources');
@@ -2243,31 +2300,31 @@ function getKeywordList(editor, pos) {
                 }
             // values for 'default', 'auth'
             } else if (leftChar === ':' && blockLevel === 1) {
-
+                return null;
                 // search for the corresponding property keyword
-                propertyName = findTermInRange(left_1, cursorIndex, propertyList_2, doc);
+                // propertyName = findTermInRange(left_1, cursorIndex, propertyList_2, doc);
 
-                switch(propertyName) {
-                    case 'default':
-                        return null;
+                // switch(propertyName) {
+                    // case 'default':
+                        // return null;
                         // kwList = ['self = caller'];
                         // return editor.session.$mode.getCompletions(kwList, 'default');
-                    case 'auth':
-                        return null;
+                    // case 'auth':
+                        // return null;
                         // kwList = ['true', 'self.oclAsType(Student).courses->exists(c|c.lectures->includes(caller.oclAsType(Lecturer)))'];
                         // return editor.session.$mode.getCompletions(kwList, 'auth');
-                    default:
-                        return null;
-                }
+                    // default:
+                        // return null;
+                // }
             } else { // for keywords of properties
                 if (blockLevel === 0) { // 'class', 'permission'
                     kwList = ['class', 'permission'];
                     kwList = filterProperties(kwList, doc, left_0, c);
-                } else { // 'resources', 'actions', 'default' or 'roles', 'auth'
+                } else if (blockLevel === 1) { // 'resources', 'actions', 'default' or 'roles', 'auth'
                     kwList = ['resources', 'actions', 'default', 'roles', 'auth'];
                     kwList = filterProperties(kwList, doc, left_1, c);
                 }
-                return editor.session.$mode.getCompletions(kwList);
+                return kwList ? editor.session.$mode.getCompletions(kwList) : [];
             }
         }
     }
