@@ -1997,11 +1997,13 @@ function findTermInRange(lowerBound, upperBound, terms, doc, cursorIndex) {
     tmp_term = strStart +termName+ strEnd;
     patt = new RegExp(tmp_term, 'gi');
     if (range.match(patt).length > 1) {return '';}
+    // console.log(range.match(patt));
 
     str = range.substring(oldIndex, cursorIndex);
     patt = new RegExp('"(.|\s)*"\s*:', 'gi');
-    if (str.match(patt).length > 1) {return '';}
-    
+    // console.log(str.match(patt));
+    if ((termName === 'resources' || termName === 'actions' || termName === 'roles') && str.match(patt).length > 1) {return '';}
+
     return termName;
 }
 
@@ -2283,7 +2285,7 @@ function getKeywordList(editor, pos) {
                 switch (propertyName) {
                     case 'resources':
                         className = findTermInRange(left_0, c, classList, doc);
-                        console.log(className);
+                        // console.log(className);
                         kwList = getResources(className);
                         kwList = filterArrValues('resources', kwList, doc, left_1, c);
                         return editor.session.$mode.getCompletions(kwList, 'resources');
