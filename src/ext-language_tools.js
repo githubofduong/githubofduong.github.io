@@ -1983,26 +1983,37 @@ function findTermInRange(lowerBound, upperBound, terms, doc, cursorIndex) {
         patt = new RegExp(str);
         // find the term's index
         termIndex = range.search(patt);
-// console.log('termIndex: '+termIndex);
-// console.log(tmp_term);
-// console.log(oldIndex);
-// console.log(cursorIndex)
+
         // the higher the index, the closer the property to the cursor
         if (oldIndex < termIndex && termIndex < cursorIndex) {
             oldIndex = termIndex; // store the term's index
             termName = tmp_term;  // store the term's name
         }
     }
-    
-    tmp_term = strStart +termName+ strEnd;
-    patt = new RegExp(tmp_term, 'gi');
-    if (range.match(patt).length > 1) {return '';}
-    // console.log(range.match(patt));
 
-    str = range.substring(oldIndex, cursorIndex);
-    patt = new RegExp('"(.|\s)*"\s*:', 'gi');
-    // console.log(str.match(patt));
-    if ((termName === 'resources' || termName === 'actions' || termName === 'roles') && str.match(patt).length > 1) {return '';}
+    switch(termName) {
+        case 'resources':
+            el = false;
+            break;
+        case 'actions':
+            el = false;
+            break;
+        case 'roles':
+            el = false;
+            break;
+        default:
+            break;
+    }
+    if (el === false) {
+        tmp_term = strStart +termName+ strEnd;
+        patt = new RegExp(tmp_term, 'gi');
+        if (range.match(patt).length > 1) {return '';}
+    
+        str = range.substring(oldIndex, cursorIndex);
+        patt = new RegExp('"(.|\s)*"\s*:', 'gi');
+
+        if (str.match(patt).length > 1) {return '';}
+    }
 
     return termName;
 }
@@ -2016,26 +2027,27 @@ function validateDoubleQuotes(cursorIndex, doc) {
 
     /**************** VARIABLES***********************/
     var // iterator of while loop
-        c = 0,
+        c = 0, i = 0,
         // length of document
         docLength = doc.length,
         // state to mark if iterator c is inside a pair of double quotes
         state = false,
         // identify which block level the cursor is inside
         blockLevel = -1,
+        // currentBlockLevel,
         // indices of left curly braces for block level 0 and 1 respectively
         left_0, left_1,
+        right_1,
         // left and right characters which are not blank outside double quotes
         leftChar, rightChar,
         // to store last character and current character
         lastChar = '', currentChar,
         // to store index of the object the cursor is inside
         objIndex = -1;
+        // arrBegin, arrEnd;
     /**************** VARIABLES **********************/
 
-    // doc.search(/^\s*\[\s*\{[.\s]/)
-    if (doc.search(/(^\s*\[\s*\{)(?:(.|\s))*(\}\s*\]\s*$)/)) { return false; }
-    // console.log(doc.match(/(^\s*\[\s*\{)(?:(.|\s))*(\}\s*\]\s*$)/)[0]);
+    // if (doc.search(/(^\s*\[\s*\{)(?:(.|\s))*(\}\s*\]\s*$)/)) {return false;}
     // determine blockLevel
     while (c < cursorIndex) {
         currentChar = doc[c];
@@ -2062,6 +2074,10 @@ function validateDoubleQuotes(cursorIndex, doc) {
             } else if (currentChar === '{' && !state) {
                 ++rightCurlyBrace;
             } else if (currentChar === '}' && !state) {
+                if (i === 0 && left_1) {
+                    right_1 = c;
+                    ++i;
+                }
                 --rightCurlyBrace;
             }
             lastChar = currentChar;
@@ -2077,7 +2093,10 @@ function validateDoubleQuotes(cursorIndex, doc) {
                 rightChar: rightChar,
                 left_0: left_0,
                 left_1: left_1,
+                right_1: right_1,
                 objIndex: objIndex
+                // arrBegin: arrBegin,
+                // arrEnd: arrEnd
             }
         }
     }
@@ -2187,12 +2206,14 @@ function filterProperties(propertyList, doc, lower, upper) {
 function filterArrValues(property, values, doc, lower, upper) {
     var str = doc.slice(lower, upper),
         patt = new RegExp('"' +property+ '"\\s*:\\s*\\[.*\\]'),
-        res = str.match(patt)[0],
-        str = res.match(/\[.*\]/)[0],
+        res,
         arr = [];
 
+    res = str.match(patt);
+    if (!res) {return arr;}
+    str = res[0].match(/\[.*\]/)[0];
     values.filter(function(currentValue) {
-        str.indexOf(currentValue) === -1 ? arr.push(currentValue) : {};
+        str.indexOf('"'+currentValue+'"') === -1 ? arr.push(currentValue) : {};
     });
     return arr;
 }
@@ -2228,7 +2249,10 @@ function getKeywordList(editor, pos) {
             rightChar = res.rightChar,
             left_0 = res.left_0,
             left_1 = res.left_1,
+            right_1 = res.right_1,
             objIndex = res.objIndex;
+            // arrBegin = res.arrBegin,
+            // arrEnd = res.arrEnd;
 
         function validateClass() { //console.log("validateClass()");
             // var patt = new RegExp(/(?:"permission"\s*:\s*\[(.|\s)*\}\s*\])/);
@@ -2236,21 +2260,18 @@ function getKeywordList(editor, pos) {
                 tmpCursor = cursorIndex - left_0,
                 // lower = 0, upper = c - left_0,
                 classIndex = range.lastIndexOf('"class"', tmpCursor);
-// console.log(classIndex);
+
             if (classIndex === -1) {return false;}
             var str = range.substring(classIndex, tmpCursor),
                 tmp = str.search(/^"class"\s*:\s*"$/gi);
-// console.log(str);
+
             if (tmp) {return false;}
             
             var patt = new RegExp(/"permission"\s*:\s*\[(.|\s)*\}\s*\]/gi),
                 pArr = range.match(patt);
-            // console.log(pArr[0]);
-            // console.log(pArr[1]);
-            // console.log(pArr.length);
-            // console.log(pArr);
+
             if (pArr && pArr.length > 1) {return false;}
-            // console.log("passed");
+            
             // 0 perm: count "class" in range
             
             if (!pArr) {
@@ -2267,8 +2288,8 @@ function getKeywordList(editor, pos) {
             
             return false;
         }
-        // double quotes on the right side
-        // findTermInRange(left_0, c, ['class', 'permission'], doc, cursorIndex) === 'class' &&
+                
+
         if (leftChar === ':' &&  !blockLevel) {
             if (validateClass()) {
                 return filterClassNames(classList, doc);
@@ -2280,12 +2301,10 @@ function getKeywordList(editor, pos) {
             if ((leftChar === '[' || leftChar === ',') && (rightChar === ']' || rightChar === ',')) {
 
                 // search for the corresponding property keyword
-                propertyName = findTermInRange(left_1, c, propertyList_1, doc, cursorIndex);
-                
+                propertyName = findTermInRange(left_1, right_1, propertyList_1, doc, cursorIndex);
                 switch (propertyName) {
                     case 'resources':
                         className = findTermInRange(left_0, c, classList, doc);
-                        // console.log(className);
                         kwList = getResources(className);
                         kwList = filterArrValues('resources', kwList, doc, left_1, c);
                         return editor.session.$mode.getCompletions(kwList, 'resources');
