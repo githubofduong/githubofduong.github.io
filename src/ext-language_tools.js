@@ -2403,16 +2403,18 @@ function filterClassNames(classList, doc) {
     var el,
         patt,
         index,
-        str = '"class"\\s*:\\s*"';
+        str = '"class"\\s*:\\s*"',
+        arr = [];
 
     for (el in classList) {
         patt = new RegExp(str +classList[el].name+ '"');
         index = doc.search(patt);
-        if (index !== -1) {
-            classList.splice(el, 1);
+        if (index === -1) {
+            arr.push(classList[el]);
         }
     }
-    return classList;
+
+    return arr;
 }
 
 // function filterPropertiesOuter(propertyList, doc, lower, upper) {
