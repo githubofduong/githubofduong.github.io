@@ -2144,7 +2144,7 @@ ace.define("ace/snippets",["require","exports","module","ace/lib/oop","ace/lib/e
                     break;
             }
     
-            if (!arrCounter) { console.log('reached end of main arr');
+            if (!arrCounter) {
                 mainArrEnd = c;
                 break;
             }
@@ -2169,25 +2169,25 @@ ace.define("ace/snippets",["require","exports","module","ace/lib/oop","ace/lib/e
             }
     
             // object of main array {}
-            if (pivotOuterBlock && outerBlockEnd > cursorIndex) {
+            if (pivotOuterBlock && blockCounter === 0 && outerBlockEnd > cursorIndex) {
                 pivotOuterBlock = false;
                 currentOuterBlockEnd = outerBlockEnd;
             }
     
             // array of permission []
-            if (pivotSubArr && subArrEnd > cursorIndex) {
+            if (pivotSubArr && arrCounter === 1 && subArrEnd > cursorIndex) {
                 pivotSubArr = false;
                 currentSubArrEnd = subArrEnd;
             }
     
             // object of permission {}
-            if (pivotInnerBlock && innerBlockEnd > cursorIndex) {
+            if (pivotInnerBlock && blockCounter === 1 && innerBlockEnd > cursorIndex) {
                 pivotInnerBlock = false;
                 currentInnerBlockEnd = innerBlockEnd;
             }
     
             // array of resources, actions, roles []
-            if (pivotRAR && resourcesActionsRolesArrEnd > cursorIndex) {
+            if (pivotRAR && arrCounter === 2 && resourcesActionsRolesArrEnd > cursorIndex) {
                 pivotRAR = false;
                 currentRAR_End = resourcesActionsRolesArrEnd;
             }
@@ -2200,11 +2200,11 @@ ace.define("ace/snippets",["require","exports","module","ace/lib/oop","ace/lib/e
         // cursor must be inside the main array
         if (cursorIndex <= mainArrStart || mainArrEnd <= cursorIndex) {return false}
     
-        if (currentBlock === 1 && outerBlockStart < cursorIndex && cursorIndex < outerBlockEnd) {
+        if (currentBlock === 1 && currentOuterBlockStart < cursorIndex && cursorIndex < currentOuterBlockEnd) {
             leftCharIndex = findFirstLeftCharIndex(doc, cursorIndex);
             leftChar = doc[leftCharIndex];
             rightChar = findFirstRightChar(doc, cursorIndex);
-            
+    
             if (leftChar === ':') {
                 var range = reverseString(doc.substring(currentOuterBlockStart, leftCharIndex)),
                     // "class"\s*: ->
@@ -2237,17 +2237,17 @@ ace.define("ace/snippets",["require","exports","module","ace/lib/oop","ace/lib/e
                     return false;
                 }
     
-                if (currentArr === 3) { console.log("arr level: " +currentArr);
+                if (currentArr === 3) {
                     if (currentRAR_Start <= currentInnerBlockStart || currentInnerBlockEnd <= currentRAR_End) {
                         return false;
                     }
-    console.log("after range");
+    
                     var i = false, el, termArr = ['resources', 'actions', 'roles'];
                     range = reverseString(doc.substring(currentInnerBlockStart, currentRAR_Start));
-    console.log(range)                ;
+    
                     for (el in termArr) {
                         term = new RegExp('\\s*:\\s*"' +reverseString(termArr[el])+ '"');
-    console.log(term);
+    
                         if (range.search(term)) {continue}
     
                         term = new RegExp('"' +termArr[el]+ '"\\s*:', 'g');
@@ -2256,7 +2256,7 @@ ace.define("ace/snippets",["require","exports","module","ace/lib/oop","ace/lib/e
                         }
                         i = true;
                         term = termArr[el];
-                        console.log("here")         ;
+    
                         break;
                     }
            
@@ -2286,9 +2286,7 @@ ace.define("ace/snippets",["require","exports","module","ace/lib/oop","ace/lib/e
             return false;
         }
     
-        console.log("checking");
         return false;
-        // 
     
         // if (doc.search(/(^\s*\[\s*\{)(?:(.|\s))*(\}\s*\]\s*$)/)) {return false;}
         // determine blockLevel
@@ -2405,16 +2403,18 @@ ace.define("ace/snippets",["require","exports","module","ace/lib/oop","ace/lib/e
         var el,
             patt,
             index,
-            str = '"class"\\s*:\\s*"';
+            str = '"class"\\s*:\\s*"',
+            arr = [];
     
         for (el in classList) {
             patt = new RegExp(str +classList[el].name+ '"');
             index = doc.search(patt);
-            if (index !== -1) {
-                classList.splice(el, el+1);
+            if (index === -1) {
+                arr.push(classList[el]);
             }
         }
-        return classList;
+    
+        return arr;
     }
     
     // function filterPropertiesOuter(propertyList, doc, lower, upper) {
@@ -2498,7 +2498,6 @@ ace.define("ace/snippets",["require","exports","module","ace/lib/oop","ace/lib/e
             validatedResult = validateDoubleQuotes(cursorIndex, doc);
     
         if (validatedResult) {
-    
             var // array to return list of keywords
                 kwList,
                 // class name of the object the cursor is inside
@@ -2556,14 +2555,13 @@ ace.define("ace/snippets",["require","exports","module","ace/lib/oop","ace/lib/e
             //     return false;
             // }
     
-            if (blockLevel === 1) { console.log("filter");
-                switch(leftChar) {
-                    case ':':
-                        return filterClassNames(classList, doc);
-                    default:
-                        kwList = ['class', 'permission'];
-                        kwList = filterProperties(kwList, doc, outerBlockStart, outerBlockEnd);
-                        return editor.session.$mode.getCompletions(kwList);
+            if (blockLevel === 1) {
+                if (leftChar === ':') {
+                    return filterClassNames(classList, doc);
+                } else if ((leftChar === '{' || leftChar === ',')  && (rightChar === ',' || rightChar === '}')) {
+                    kwList = ['class', 'permission'];
+                    kwList = filterProperties(kwList, doc, outerBlockStart, outerBlockEnd);
+                    return editor.session.$mode.getCompletions(kwList);
                 }
             } else if (blockLevel === 2) {
                 var term = res.term,
@@ -2574,14 +2572,12 @@ ace.define("ace/snippets",["require","exports","module","ace/lib/oop","ace/lib/e
                     currentInnerBlockEnd = res.currentInnerBlockEnd,
                     currentRAR_Start = res.currentRAR_Start,
                     currentRAR_End = res.currentRAR_End;
-    console.log(currentArr);
+    
                 if (currentArr === 2 && leftChar !== ':') {
                     kwList = ['resources', 'actions', 'default', 'roles', 'auth'];
                     kwList = filterProperties(kwList, doc, currentInnerBlockStart, currentInnerBlockEnd);
-                    console.log(kwList);
                     return editor.session.$mode.getCompletions(kwList);
                 } else if (currentArr === 3) {
-                    console.log(term);
                     switch(term) {
                         case 'resources':
                             className = findTermInRange(outerBlockStart, outerBlockEnd, classList, doc);
