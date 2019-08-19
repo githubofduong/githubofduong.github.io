@@ -2356,7 +2356,7 @@ function getKeywordList(editor, pos) {
         if (blockLevel === 1) {
             if (leftChar === ':') {
                 return editor.session.$mode.getCompletions(classList, 'class');
-            } else if ((leftChar === '{' || leftChar === ',')  && (rightChar === ',' || rightChar === '}')) {
+            } else if ((leftChar === '{' || leftChar === ',')  && (rightChar === ',' || rightChar === '}' || rightChar === ':')) {
                 kwList = ['class', 'permission'];
                 kwList = filterUsedKeywords(doc, kwList, outerBlockStart, outerBlockEnd);
                 return editor.session.$mode.getCompletions(kwList);
