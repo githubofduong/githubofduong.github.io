@@ -21524,7 +21524,7 @@ ace.define("ace/data-model", [], function(require, exports, module) {
     this.importDataModel = function () {
         this.dataModel.length
             ? this.removeEditorAttributes(['onclick', 'onkeypress'])
-            : window.alert('First of all, please press (ALT + O) to IMPORT a valid JSON file of data model before editing!');
+            : window.alert('Missing JSON input: Please press (ALT + O) to import.');
     }
 
     this.removeEditorAttributes = function (attArr) {
@@ -21543,16 +21543,40 @@ ace.define("ace/data-model", [], function(require, exports, module) {
             window.alert(reader.error);
         }
         reader.onload = function(e) { // FileReader eventHandler()
-            try { // parsing the text into JSON
-                // console.log("Hi");
-                this.setDataModel(JSON.parse(reader.result));
-                this.sendDataModelToWorker();
-            } catch (error) { // in case of json parsing error
-                window.alert('ParsingError: the file ' +jsonFile.name+ ' is invalid JSON!');
-                // window.alert(error);
-            }
+            this.validateDataModelSemantic(reader.result, this.processResponseText);
         }.bind(this);
+    }
+
+    this.processResponseText = function(response, text) {
+        if (response) {
+            try {
+                this.setDataModel(JSON.parse(text));
+                this.sendDataModelToWorker();
+            } catch (error) {
+                // console.log(error);
+                window.alert('ParsingError: Invalid JSON!');
+            }
+        } else {
+            window.alert('SemanticError: Invalid data model!');
+        }
     }.bind(this);
+
+    this.validateDataModelSemantic = function(text, processResponseText) {
+        var xhttp = new XMLHttpRequest(),
+            tmp = JSON.stringify({data: text});
+
+        xhttp.onreadystatechange = function() {
+            if (this.readyState == 4 && this.status == 200) {
+                this.responseText == 'true'
+                    ? processResponseText(true, text)
+                    : processResponseText(false)
+            }
+        }
+
+        xhttp.open("PUT", "https://jsondm-editor.herokuapp.com/api/checkDM", true);
+        xhttp.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
+        xhttp.send(tmp);
+    }
 
 }).call(DataModel.prototype);
 
