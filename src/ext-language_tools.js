@@ -1912,19 +1912,33 @@ function getResources(className) {
         // array of objects containing values for 'resources'
         resources = [],
         // placeholders for accessing elements
-        tmpName, tmpAttr, attObj,
+        tmpName, tmpAttr, tmpClasses,
         // get array of data model
         dataModel = dataModelObj.getDataModel();
     /*******************  VARIABLES  *************************/
 
     // loop through data model
     for (el in dataModel) {
-        tmpName = dataModel[el].class;      // access property 'class'
-        tmpAttr = dataModel[el].attributes; // access property 'attributes'
-        // class name found and 'attributes' is an array with at least an element
-        if (tmpName == className && Array.isArray(tmpAttr) && tmpAttr.length) {
-            for (subEl in tmpAttr) {     // loop through array 'attributes'
-                resources.push(tmpAttr[subEl].name);
+        tmpClasses = dataModel[el].classes;
+        if (tmpClasses) {
+            switch(tmpClasses.indexOf(className)) {
+                case 0:
+                    resources.push(dataModel[el].ends[1]);
+                    break;
+                case 1:
+                    resources.push(dataModel[el].ends[0]);
+                    break;
+                default:
+                    break;
+            }
+        } else {
+            tmpName = dataModel[el].class;      // access property 'class'
+            tmpAttr = dataModel[el].attributes; // access property 'attributes'
+            // class name found and 'attributes' is an array with at least an element
+            if (tmpName == className && Array.isArray(tmpAttr) && tmpAttr.length) {
+                for (subEl in tmpAttr) {     // loop through array 'attributes'
+                    resources.push(tmpAttr[subEl].name);
+                }
             }
         }
     }
@@ -2116,9 +2130,9 @@ function validateDoubleQuotes(cursorIndex, doc) {
         rightChar = findFirstRightChar(doc, cursorIndex);
 
         if (leftChar === ':') {
-            var range = reverseString(doc.substring(currentOuterBlockStart, leftCharIndex)),
+            var range = stringReverse(doc.substring(currentOuterBlockStart, leftCharIndex)),
                 // "class"\s*: ->
-                term  = new RegExp('\\s*"' +reverseString('class')+ '"');
+                term  = new RegExp('\\s*"' +stringReverse('class')+ '"');
 
             if (range.search(term)) {return false}
 
@@ -2137,9 +2151,9 @@ function validateDoubleQuotes(cursorIndex, doc) {
         }
     } else if (currentBlock === 2) {
         if (currentSubArrStart < currentInnerBlockStart && currentInnerBlockEnd < currentSubArrEnd) {
-            var range = reverseString(doc.substring(currentOuterBlockStart, currentSubArrStart)),
+            var range = stringReverse(doc.substring(currentOuterBlockStart, currentSubArrStart)),
                 // "permission"\s*:\s*[ -> [\s*:\s*" reverseString() "
-                term  = new RegExp('\\s*:\\s*"' +reverseString('permission')+ '"');
+                term  = new RegExp('\\s*:\\s*"' +stringReverse('permission')+ '"');
 
             if (range.search(term)) {return false}
             
@@ -2153,10 +2167,10 @@ function validateDoubleQuotes(cursorIndex, doc) {
                 }
 
                 var i = false, el, termArr = ['resources', 'actions', 'roles'];
-                range = reverseString(doc.substring(currentInnerBlockStart, currentRAR_Start));
+                range = stringReverse(doc.substring(currentInnerBlockStart, currentRAR_Start));
 
                 for (el in termArr) {
-                    term = new RegExp('\\s*:\\s*"' +reverseString(termArr[el])+ '"');
+                    term = new RegExp('\\s*:\\s*"' +stringReverse(termArr[el])+ '"');
 
                     if (range.search(term)) {continue}
 
@@ -2197,15 +2211,19 @@ function validateDoubleQuotes(cursorIndex, doc) {
     return false;
 }
 
-function reverseString(str) {
-    var i = str.length-1,
-        newStr = '';
+function stringReverse(string) {
+    return string.split("").reverse().join("");
+};
+
+// function reverseString(str) {
+//     var i = str.length-1,
+//         newStr = '';
     
-    while(i >= 0) {
-        newStr += str[i--];
-    }
-    return newStr;
-}
+//     while(i >= 0) {
+//         newStr += str[i--];
+//     }
+//     return newStr;
+// }
 
 function findFirstLeftCharIndex(doc, cursorIndex) {
     --cursorIndex;
@@ -2388,10 +2406,10 @@ function getKeywordList(editor, pos) {
                         kwList = ['create', 'read', 'update', 'delete'];
                         kwList = filterUsedKeywords(doc, kwList, currentRAR_Start, currentRAR_End, currentArr);
                         return editor.session.$mode.getCompletions(kwList, 'actions');
-                    case 'roles':
-                        kwList = ['admin', 'lecturer'];
-                        kwList = filterUsedKeywords(doc, kwList, currentRAR_Start, currentRAR_End, currentArr);
-                        return editor.session.$mode.getCompletions(kwList, 'roles');
+                    // case 'roles':
+                    //     kwList = ['admin', 'lecturer'];
+                    //     kwList = filterUsedKeywords(doc, kwList, currentRAR_Start, currentRAR_End, currentArr);
+                    //     return editor.session.$mode.getCompletions(kwList, 'roles');
                     default:
                         return null;
                 }

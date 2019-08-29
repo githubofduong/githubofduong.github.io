@@ -1735,14 +1735,36 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
     }
 
     function validateClassName (className) {
-        if (!classNameList.length) { return true; }
+        // value of class is not string or empty string
+        if (typeof className != "string" || className.trim() == "") {
+            errMsg = 'Invalid Schema: Class name must be a non-empty string.';
+            searchProperty(at, 'class');
+        }
+
+        // if (!classNameList.length) { return; }
         for (var name in classNameList) {
             if (classNameList[name] == className) {
                 setAttributesList(className);
-                return true;
+                return;
             }
         }
-        return false;
+
+        errMsg = 'Invalid Schema: Class name "' +className+ '" not found.';
+        searchProperty(at, 'class');
+    }
+
+    function validateArrPermission(arr) {
+        // permission is not array
+        if (!Array.isArray(arr)) {
+            errMsg = 'Invalid Schema: value of "permission" must be array.';
+            searchProperty(at, 'permission');
+        }// permission is array
+
+        // array "permission" empty
+        if (!arr.length) {
+            errMsg = 'Invalid Schema: Array "permission" empty.';
+            searchProperty(at, 'permission');
+        } // array not empty
     }
 
     // all strings must belong to property "attributes" data model
@@ -1782,6 +1804,24 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
                 classNameList.push(tmp.class);
             }
         }
+
+        for (el in dataModel) {
+            tmp = dataModel[el];
+            if (tmp.hasOwnProperty('classes')) {
+                for (var subEl in classNameList) {
+                    switch(tmp.classes.indexOf(classNameList[subEl])) {
+                        case 0:
+                            classList[subEl].attributes.push({name: tmp.ends[1]});
+                            break;
+                        case 1:
+                            classList[subEl].attributes.push({name: tmp.ends[0]});
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+        }
     }
 
     // search for a property which error belongs to
@@ -1801,12 +1841,12 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         /****** TYPE CHECK OF ELEMENT ******/
         // type: array
         if (Array.isArray(currentArrEl)) {
-            errMsg = 'Invalid schema: Element must be object.';
+            errMsg = 'Invalid Schema: Element must be object.';
             errInd = text.indexOf('[', at+1);
             error(errMsg, errInd);
         }// type: string, number
         else if (typeof currentArrEl == 'string' || typeof currentArrEl == 'number') {
-            errMsg = 'Invalid schema: Element must be object.';
+            errMsg = 'Invalid Schema: Element must be object.';
             errInd = text.indexOf(currentArrEl, at);
             error(errMsg, errInd);
         }/****** END TYPE CHECK OF ELEMENT ******/
@@ -1817,7 +1857,7 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         var propertyList = Object.keys(currentArrEl);
         // empty object
         if (!propertyList.length) {
-            errMsg = 'Invalid schema: Empty object.';
+            errMsg = 'Invalid Schema: Empty object.';
             errInd = text.indexOf('{', at);
             error(errMsg, errInd);
         }// object not empty
@@ -1835,79 +1875,32 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
             switch(currentProperty) {
                 case 'class':
                     classProperty = true;
+                    validateClassName(currentArrEl.class);
                     break;
                 case 'permission':
                     permissionProperty = true;
+                    validateArrPermission(currentArrEl.permission);
                     break;
                 default:
                     /****** REMOVE UNWANTED PROPERTY ******/
-                    errMsg = 'Invalid schema: Remove "'+currentProperty+'".';
+                    errMsg = 'Invalid Schema: Remove "'+currentProperty+'".';
                     searchProperty(at, currentProperty);
             }
         }/****** END OF FILTER UNWANTED PROPERTIES ******/
 
-
-        /****** RECHECK THE EXISTENCE OF PROPERTY CLASS ******/
         // missing class
         if (!classProperty) {
-            errMsg = 'Invalid schema: Missing property "class".';
+            errMsg = 'Invalid Schema: Missing property "class".';
             errInd = text.indexOf('{', at);
             error(errMsg, errInd);
         } // class exists
-        /****** END OF RECHECK THE EXISTENCE OF PROPERTY CLASS ******/
-
-
-        /****** VALIDATE INPUT OF PROPERTY CLASS ******/
-        var className = currentArrEl.class;
-        // value of class is not string or empty string
-        if (typeof className != "string" || className.trim() == "") {
-            errMsg = 'Invalid schema: Invalid class name.';
-            searchProperty(at, 'class');
-        }
-
-        // class name does not belong to data model
-        if (!validateClassName(className)) {
-            errMsg = 'SemanticError: Class name "' +className+ '" not found.';
-            searchProperty(at, 'class');
-        }
-
-        /****** DISABLED CHECK DUPLICATION OF CLASS NAME ******/
-        // if (duplicateClassName(classValue)) {
-        //     errMsg = 'SemanticError: Class "' +classValue+ '" duplicated.';
-        //     searchProperty(at, 'class');
-        // }
-        /****** DISABLED CHECK DUPLICATION OF CLASS NAME ******/
-        /****** END OF VALIDATE INPUT OF PROPERTY CLASS ******/
-
-
-        /****** RECHECK THE EXISTENCE OF PROPERTY PERMISSION ******/
+        
         // missing permission
         if (!permissionProperty) {
             errMsg = 'Invalid schema: Missing property "permission".'
             errInd = text.indexOf('{', at);
             error(errMsg, errInd);
         }// permission exists
-        /****** END OF RECHECK THE EXISTENCE OF PROPERTY PERMISSION ******/
-
-        
-        /****** VALIDATE INPUT OF PROPERTY PERMISSION ******/
-        var permissionArray = currentArrEl.permission;
-        // permission is not array
-        if (!Array.isArray(permissionArray)) {
-            errMsg = 'Invalid schema: "permission" must be array.';
-            searchProperty(at, 'permission');
-        }// permission is array
-
-        // number of elements of array "permission"
-        var permLength = permissionArray.length;
-        // array "permission" empty
-        if (!permLength) {
-            errMsg = 'Invalid schema: Array "permission" empty.';
-            searchProperty(at, 'permission');
-        } // array not empty
-        /****** END OF VALIDATE INPUT OF PROPERTY PERMISSION ******/
-
-        // return permLength;
     }
 
     // check the existence of properties:
@@ -1920,7 +1913,7 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         /****** TYPE CHECK OF ARRAY ELEMENT ******/
         // array element is not object
         if (typeof currentObject !== 'object' || Array.isArray(currentObject)) {
-            errMsg = 'Invalid schema: Element of "permission" must be object.';
+            errMsg = 'Invalid Schema: Element of "permission" must be object.';
             searchProperty(at, 'permission');
         }// element is object
         /****** END OF TYPE CHECK OF ARRAY ELEMENT ******/
@@ -1940,7 +1933,7 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
 
         // object empty
         if (!propertyList.length) {
-            errMsg = 'Invalid schema: Empty object';
+            errMsg = 'Invalid Schema: Empty object';
             errInd = text.indexOf('{', p_at);
             error(errMsg, errInd);
         }// object not empty
@@ -1958,9 +1951,9 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
                     break;
                 case 'default':
                     if (p_roles) {
-                        errMsg = 'Invalid schema: Remove "default" or "roles".';
+                        errMsg = 'Invalid Schema: Remove "default" or "roles".';
                     } else if (p_auth) {
-                        errMsg = 'Invalid schema: Remove "default" or "auth".';
+                        errMsg = 'Invalid Schema: Remove "default" or "auth".';
                     } else {
                         p_default = true;
                         validateDefault(currentObject);
@@ -1970,7 +1963,7 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
                     error(errMsg, errInd);
                 case 'roles':
                     if (p_default) {
-                        errMsg = 'Invalid schema: Remove "default" or "roles".';
+                        errMsg = 'Invalid Schema: Remove "default" or "roles".';
                         errInd = text.indexOf('{', p_at);
                         error(errMsg, errInd);
                     }
@@ -1979,7 +1972,7 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
                     break;
                 case 'auth':
                     if (p_default) {
-                        errMsg = 'Invalid schema: Remove "default" or "auth".';
+                        errMsg = 'Invalid Schema: Remove "default" or "auth".';
                         errInd = text.indexOf('{', p_at);
                         error(errMsg, errInd);
                     }
@@ -1987,7 +1980,7 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
                     validateAuth(currentObject);
                     break;
                 default:
-                    errMsg = 'Invalid schema: Remove "' +tmpProperty+ '".';
+                    errMsg = 'Invalid Schema: Remove "' +tmpProperty+ '".';
                     searchProperty(p_at, tmpProperty);
             }
         }/****** END OF FILTER UNWANTED PROPERTIES OF OBJECT ELEMENT ******/
@@ -1996,17 +1989,17 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         /****** RECHECK THE EXISTENCE OF PROPERTIES ******/
         // begin checking "resources"
         if (!p_resources) {
-            errMsg = 'Invalid schema: Missing property "resources".';
+            errMsg = 'Invalid Schema: Missing property "resources".';
             errInd = text.indexOf("{", p_at+1);
             error(errMsg, errInd);
         }// "resources" exists, check "actions"
         else if (!p_actions) {
-            errMsg = 'Invalid schema: Missing property "actions".';
+            errMsg = 'Invalid Schema: Missing property "actions".';
             errInd = text.indexOf("{", p_at+1);
             error(errMsg, errInd);
         }// "actions" exists, check "default"
         else if (!p_default && (!p_roles || !p_auth)) {
-            errMsg = 'Invalid schema: Missing property ';
+            errMsg = 'Invalid Schema: Missing property ';
             errMsg += p_roles ? '"auth".' : (p_auth ? '"roles".' : '"default" or "roles", "auth".');
             errInd = text.indexOf('{', p_at);
             error(errMsg, errInd);
@@ -2018,11 +2011,11 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
 
         // "resources" is not array
         if (!Array.isArray(currentObject.resources)) {
-            errMsg = 'Invalid schema: Value of "resources" must be array.';
+            errMsg = 'Invalid Schema: Value of "resources" must be array.';
             searchProperty(p_at, 'resources');
         } else { // check array elements
             if (!currentObject.resources.length) { // array empty
-                errMsg = 'Invalid schema: Array "resources" empty.';
+                errMsg = 'Invalid Schema: Array "resources" empty.';
                 searchProperty(p_at, 'resources');
             }
             filterDuplicateArrEls('resources', attributesList, currentObject.resources);
@@ -2047,11 +2040,11 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         /******* VALIDATE PROPERTY "ACTIONS" *******/
         // "actions" is not array
         if (!Array.isArray(currentObject.actions)) {
-            errMsg = 'Invalid schema: Value of "actions" must be array.';
+            errMsg = 'Invalid Schema: Value of "actions" must be array.';
             searchProperty(p_at, 'actions');
         } else { // check array elements
             if (!currentObject.actions.length) { // array empty
-                errMsg = 'Invalid schema: Array "actions" empty.';
+                errMsg = 'Invalid Schema: Array "actions" empty.';
                 searchProperty(p_at, 'actions');
             }
             filterDuplicateArrEls('actions', ['create', 'read', 'update', 'delete'], currentObject.actions);
@@ -2062,7 +2055,7 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
     function validateDefault(currentObject) {
         var tmpDefault = currentObject.default;
         if (typeof tmpDefault != "string" || tmpDefault.trim() == "") {
-            errMsg = 'Invalid schema: Value of "default" must be string.';
+            errMsg = 'Invalid Schema: Value of "default" must be string.';
             searchProperty(p_at, 'default');
         }
     }
@@ -2073,16 +2066,16 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         var rolesEl = currentObject.roles,
             len;
         if (!Array.isArray(rolesEl)) {
-            errMsg = 'Invalid schema: Value of "roles" must be array.';
+            errMsg = 'Invalid Schema: Value of "roles" must be array.';
             searchProperty(p_at, 'roles');
         }// "roles" is array
 
         len = rolesEl.length;
         if (!len) {// array empty
-            errMsg = 'Invalid schema: Array "roles" empty.';
+            errMsg = 'Invalid Schema: Array "roles" empty.';
             searchProperty(p_at, 'roles');
         } 
-        filterDuplicateArrEls('roles', ['admin', 'lecturer'], rolesEl);
+        // filterDuplicateArrEls('roles', ['admin', 'lecturer'], rolesEl);
     }
 
     // check value of "auth"
@@ -2090,12 +2083,12 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         
         var authEl = currentObject.auth;
         if (typeof authEl != 'string' || authEl.trim() == '') {
-            errMsg = 'Invalid schema: Value of "auth" must be string.';
+            errMsg = 'Invalid Schema: Value of "auth" must be string.';
             searchProperty(p_at, 'auth');
         }
     }
 
-    // check duplicate array elements
+    // check duplicated array elements
     function filterDuplicateArrEls(propertyName, fullList, inputList) {
         var fullListIndex,
             dupCounter = [];
@@ -2103,14 +2096,14 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
             fullListIndex = fullList.indexOf(currentValue);
             switch(fullListIndex) {
                 case -1:
-                    errMsg = 'Invalid schema: "'+currentValue+'" invalid.';
+                    errMsg = 'Invalid Schema: "'+currentValue+'" invalid.';
                     searchProperty(p_at, propertyName);
                     break;
                 default:
                     if (!dupCounter[fullListIndex]) {
                         dupCounter[fullListIndex] = true;
                     } else {
-                        errMsg = 'Invalid schema: "'+currentValue+'" duplicate.';
+                        errMsg = 'Invalid Schema: "'+currentValue+'" duplicated.';
                         searchProperty(p_at, propertyName);
                     }
                     break;
@@ -2150,7 +2143,7 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         /****** CHECK INPUT TYPE ******/
         // ARRAY was not initialized
         if (!Array.isArray(object_json)) {
-            errMsg = 'Invalid schema: Must initialize an array.';
+            errMsg = 'Invalid Schema: Must initialize an array.';
             error(errMsg, at);
         } // ARRAY was initialized
 
@@ -2158,7 +2151,7 @@ ace.define("ace/mode/validator/schema", [], function(require, exports, module){
         /****** COUNT NUMBER OF ARRAY ELEMENTS ******/
         // undefined or empty ARRAY
         if (object_json === undefined || !object_json.length) {
-            errMsg = 'Invalid schema: Array is empty. Expect object element.';
+            errMsg = 'Invalid Schema: Array is empty. Expect object element.';
             error(errMsg, at);
         } // ARRAY not undenfined and not empty
 
