@@ -12048,6 +12048,22 @@ exports.commands = [{
         }
     }
 },
+{
+    name: "download",
+    description: "Download a JSON file of security model",
+    bindKey: "Ctrl-Shift-S",
+    exec: function(editor) {
+        var a = document.getElementById("a");
+        var content = editor.getValue(),
+            fileName = 'securityModel.json',
+            type = 'text/plain';
+
+        var file = new Blob([content], {type: type});        
+        a.href = URL.createObjectURL(file);
+        a.download = fileName;
+        a.click();
+    }
+},
 //  {
 //     name: "showSettingsMenu",
 //     bindKey: bindKey("Ctrl-,", "Command-,"),
@@ -21543,9 +21559,18 @@ ace.define("ace/data-model", [], function(require, exports, module) {
             window.alert(reader.error);
         }
         reader.onload = function(e) { // FileReader eventHandler()
-            this.validateDataModelSemantic(reader.result, this.processResponseText);
+            // this.validateDataModelSemantic(reader.result, this.processResponseText);
+            /** local test **/
+            try {
+                this.setDataModel(JSON.parse(reader.result));
+                // console.log(this.getDataModel());
+                this.sendDataModelToWorker();
+            } catch (error) {
+                // console.log(error);
+                window.alert('ParsingError: Invalid JSON!');
+            }
         }.bind(this);
-    }
+    }.bind(this);
 
     this.processResponseText = function(response, text) {
         if (response) {
@@ -21572,9 +21597,10 @@ ace.define("ace/data-model", [], function(require, exports, module) {
                     : processResponseText(false)
             }
         }
-
+        
         xhttp.open("PUT", "https://jsondm-editor.herokuapp.com/api/checkDM", true);
         xhttp.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
+        xhttp.withCredentials = true;
         xhttp.send(tmp);
     }
 
